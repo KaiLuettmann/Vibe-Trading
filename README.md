@@ -368,7 +368,7 @@ vibe-trading-mcp               # start MCP server (stdio)
 | **B. Local install** | Development, full CLI access | 5 min |
 | **C. MCP plugin** | Plug into your existing agent | 3 min |
 | **D. ClawHub** | One command, no cloning | 1 min |
-| **E. Pre-built image (GHCR)** | Home server / NAS, no Git needed, Watchtower-compatible | 2 min |
+| **E. Pre-built image (GHCR)** | Home server / NAS, no Git needed | 2 min |
 
 ### Prerequisites
 
@@ -447,7 +447,7 @@ The skill + MCP config is downloaded into your agent's skills directory. See [Cl
 
 ### Path E: Pre-built image (no Git required)
 
-Pull the latest release image directly from the GitHub Container Registry — no repository clone, no local build. Ideal for home servers, Synology NAS, and setups managed by automated update tools like [Watchtower](https://containrrr.dev/watchtower/).
+Pull the latest release image directly from the GitHub Container Registry — no repository clone, no local build. Ideal for home servers and Synology NAS.
 
 **1. Create a `.env` file** with your LLM provider credentials (see [Environment Variables](#-environment-variables) for all options):
 
@@ -472,8 +472,6 @@ docker compose -f docker-compose.prod.yml up -d
 ```
 
 Open `http://localhost:8899`. The frontend is baked into the image and served at the same port — no separate build step required.
-
-> **Automatic updates:** Run [Watchtower](https://containrrr.dev/watchtower/) alongside this compose file and it will detect new `latest` tag releases, pull the updated image, and recreate your container automatically — zero manual steps after initial setup.
 
 > **Data persistence:** Run data (agent runs and sessions) is stored in named Docker volumes (`vibe-runs`, `vibe-sessions`) and survives container recreation.
 
