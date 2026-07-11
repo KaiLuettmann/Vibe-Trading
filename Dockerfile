@@ -14,7 +14,7 @@ RUN npm run build
 # ============================================================================
 FROM python:3.11-slim AS runtime
 
-ARG VERSION=dev
+ARG VERSION=0.1.11
 LABEL org.opencontainers.image.title="Vibe-Trading" \
     org.opencontainers.image.description="Natural-language finance research AI agent with backtesting" \
     org.opencontainers.image.version="${VERSION}" \
@@ -24,8 +24,20 @@ LABEL org.opencontainers.image.title="Vibe-Trading" \
 WORKDIR /app
 
 # System deps
+#   build-essential — compile any wheels without prebuilt manylinux artifacts.
+#   The rest are weasyprint's runtime native libs (Pango/HarfBuzz/Fontconfig/
+#   Cairo/gdk-pixbuf) per its official Debian install list; without them the
+#   lazy `from weasyprint import HTML` in reporter.py fails and PDF rendering
+#   silently downgrades to HTML-only. fonts-dejavu-core gives non-blank PDFs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz0b \
+    libfontconfig1 \
+    libgdk-pixbuf-2.0-0 \
+    libcairo2 \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Python deps (install before copying code for layer caching)
@@ -45,8 +57,8 @@ RUN pip install --no-cache-dir -e .
 # Runtime should not run as root. Keep writable app data directories owned by
 # the service user so named Docker volumes inherit usable permissions.
 RUN useradd --create-home --shell /usr/sbin/nologin vibe \
-    && mkdir -p agent/runs agent/sessions agent/uploads agent/.swarm/runs \
-    && chown -R vibe:vibe /app
+    && mkdir -p agent/runs agent/sessions agent/uploads agent/.swarm/runs /home/vibe/.vibe-trading \
+    && chown -R vibe:vibe /app /home/vibe/.vibe-trading
 USER vibe
 
 # Default port

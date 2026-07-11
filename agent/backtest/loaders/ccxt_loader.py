@@ -17,6 +17,8 @@ import pandas as pd
 from backtest.loaders.base import (
     cached_loader_fetch,
     check_budget,
+    positive_env_float,
+    positive_env_int,
     retry_with_budget,
     validate_date_range,
 )
@@ -34,13 +36,13 @@ _INTERVAL_MAP = {
 # minutes. Cap each HTTP call, bound transient retries, and enforce a hard
 # wall-clock budget so the fetch fails fast instead of hanging. Retry
 # scheduling is delegated to :mod:`backtest.loaders.base`.
-_CCXT_TIMEOUT_MS = int(os.getenv("CCXT_TIMEOUT_MS", "15000"))
-_CCXT_FETCH_BUDGET_S = float(os.getenv("CCXT_FETCH_BUDGET_S", "60"))
+_CCXT_TIMEOUT_MS = positive_env_int("CCXT_TIMEOUT_MS", 15_000)
+_CCXT_FETCH_BUDGET_S = positive_env_float("CCXT_FETCH_BUDGET_S", 60.0)
 
 
 def _first_proxy_env(*names: str) -> str:
     for name in names:
-        value = os.getenv(name, "").strip()
+        value = os.getenv(name, "").strip()  # noqa: env-gate — system proxy vars
         if value:
             return value
     return ""
@@ -82,7 +84,9 @@ class DataLoader:
     def _get_exchange(self):
         """Create exchange instance."""
         import ccxt
-        exchange_id = os.getenv("CCXT_EXCHANGE", "binance").lower()
+        from src.config.accessor import get_env_config
+
+        exchange_id = get_env_config().data.ccxt_exchange.lower()
         exchange_cls = getattr(ccxt, exchange_id, None)
         if exchange_cls is None:
             logger.warning("Unknown CCXT exchange %s, falling back to binance", exchange_id)

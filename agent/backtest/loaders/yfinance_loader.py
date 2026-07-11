@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
 import yfinance as yf
 
-from backtest.loaders.base import loader_cache_get, loader_cache_put, validate_date_range
+logger = logging.getLogger(__name__)
+
+from backtest.loaders.base import (
+    loader_cache_get,
+    loader_cache_put,
+    validate_date_range,
+    validate_ohlc,
+)
 from backtest.loaders.registry import register
 
 _OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
@@ -52,6 +60,7 @@ def _to_yfinance_symbol(code: str) -> str:
         return upper[:-5] + "-USD"
     if upper.endswith("-USDC"):
         return upper[:-5] + "-USD"
+    # India NSE/BSE (RELIANCE.NS, 500325.BO): yfinance carries the suffix as-is.
     return upper
 
 
@@ -66,6 +75,11 @@ def _to_yfinance_interval(interval: str) -> str:
     """
     normalized = str(interval or "1D").strip()
     return _INTERVAL_MAP.get(normalized, normalized.lower())
+
+
+def _to_yfinance_exclusive_end(end_date: str) -> str:
+    """Convert the project-inclusive end date to yfinance's exclusive end."""
+    return (pd.Timestamp(end_date).normalize() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 
 
 def _download_history(
@@ -177,6 +191,7 @@ def _normalize_frame(frame: pd.DataFrame, requested_interval: str) -> pd.DataFra
     normalized = normalized.sort_index()
     normalized["volume"] = normalized["volume"].fillna(0.0)
     normalized = normalized.dropna(subset=["open", "high", "low", "close"])
+    normalized = validate_ohlc(normalized)
 
     if requested_interval == "4H" and not normalized.empty:
         normalized = normalized.resample("4h").agg(
@@ -199,7 +214,7 @@ class DataLoader:
     """Fetch HK/US equity bars from Yahoo Finance via yfinance."""
 
     name = "yfinance"
-    markets = {"us_equity", "hk_equity", "crypto"}
+    markets = {"us_equity", "hk_equity", "india_equity", "crypto"}
     requires_auth = False
 
     def is_available(self) -> bool:
@@ -218,8 +233,9 @@ class DataLoader:
         codes: List[str],
         start_date: str,
         end_date: str,
-        fields: Optional[List[str]] = None,
+        *,
         interval: str = "1D",
+        fields: Optional[List[str]] = None,
     ) -> Dict[str, pd.DataFrame]:
         """Fetch OHLCV history keyed by the original project symbols.
 
@@ -240,6 +256,7 @@ class DataLoader:
 
         requested_interval = str(interval or "1D").strip()
         yf_interval = _to_yfinance_interval(requested_interval)
+        yf_end_date = _to_yfinance_exclusive_end(end_date)
 
         symbol_groups: Dict[str, List[str]] = defaultdict(list)
         for code in codes:
@@ -270,20 +287,20 @@ class DataLoader:
             return results
 
         try:
-            bulk_data = _download_history(pending, start_date, end_date, yf_interval)
+            bulk_data = _download_history(pending, start_date, yf_end_date, yf_interval)
         except Exception as exc:
-            print(f"[WARN] yfinance bulk download failed for {pending}: {exc}")
+            logger.warning("yfinance bulk download failed for %s: %s", pending, exc)
             bulk_data = pd.DataFrame()
 
         for symbol in pending:
             try:
                 symbol_frame = _extract_symbol_frame(bulk_data, symbol, len(pending))
                 if symbol_frame.empty:
-                    symbol_frame = _download_history(symbol, start_date, end_date, yf_interval)
+                    symbol_frame = _download_history(symbol, start_date, yf_end_date, yf_interval)
 
                 normalized = _normalize_frame(symbol_frame, requested_interval)
                 if normalized.empty:
-                    print(f"[WARN] yfinance returned no usable data for {symbol}")
+                    logger.warning("yfinance returned no usable data for %s", symbol)
                     continue
 
                 loader_cache_put(
@@ -298,7 +315,7 @@ class DataLoader:
                 for original_code in symbol_groups[symbol]:
                     results[original_code] = normalized.copy()
             except Exception as exc:
-                print(f"[WARN] Failed to fetch data for {symbol}: {exc}")
+                logger.warning("Failed to fetch data for %s: %s", symbol, exc)
                 continue
 
         return results
