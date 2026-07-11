@@ -1,6 +1,11 @@
 name: Publish Docker Image
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to publish (for example v0.1.11)
+        required: false
   release:
     types: [published]
   push:
@@ -41,10 +46,12 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/vibe-trading
           tags: |
             # latest on every release
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' || inputs.release_tag != '' }}
             # vX.Y.Z + vX.Y semver aliases on releases
             type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
             type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{version}},value=${{ inputs.release_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.release_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
             # edge tag on every push to main
             type=raw,value=edge,enable=${{ github.event_name == 'push' }}
 
