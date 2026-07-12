@@ -1,0 +1,119 @@
+name: Publish Synced Release
+
+on:
+  pull_request_target:
+    types: [closed]
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  publish-release:
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'sync-release-'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch fork and upstream
+        run: |
+          git remote add upstream https://github.com/HKUDS/Vibe-Trading.git
+          git fetch origin main --tags
+          git fetch upstream --tags
+
+      - name: Resolve latest upstream release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/HKUDS/Vibe-Trading/releases/latest > release.json
+          TAG=$(jq -r .tag_name release.json)
+          NAME=$(jq -r .name release.json)
+          BODY_FILE="$RUNNER_TEMP/upstream-release-notes.md"
+          jq -r .body release.json > "$BODY_FILE"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "body_file=$BODY_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch latest upstream release tag
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          git fetch upstream "refs/tags/$TAG:refs/tags/upstream-$TAG"
+
+      - name: Check whether main contains the latest upstream release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          if ! git merge-base --is-ancestor "refs/tags/upstream-$TAG" HEAD; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            RELEASE_EXISTS=true
+          else
+            RELEASE_EXISTS=false
+          fi
+
+          CURRENT_TAG_SHA=$(git ls-remote origin "refs/tags/$TAG" | awk '{print $1}')
+          HEAD_SHA=$(git rev-parse HEAD)
+
+          if [ "$CURRENT_TAG_SHA" = "$HEAD_SHA" ] && [ "$RELEASE_EXISTS" = true ]; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Move release tag to fork main
+        if: steps.check.outputs.needed == 'true'
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          git tag -f "$TAG" HEAD
+          git push origin "refs/tags/$TAG" --force
+
+      - name: Create or update fork release
+        if: steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          NAME="${{ steps.release.outputs.name }}"
+          BODY_FILE="${{ steps.release.outputs.body_file }}"
+
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --repo "${{ github.repository }}" \
+              --title "$NAME" \
+              --notes-file "$BODY_FILE" \
+              --latest
+          else
+            gh release create "$TAG" \
+              --repo "${{ github.repository }}" \
+              --target main \
+              --title "$NAME" \
+              --notes-file "$BODY_FILE" \
+              --latest
+          fi
+
+      - name: Publish latest Docker image tags
+        if: steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run "Publish Docker Image" \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            -f release_tag="${{ steps.release.outputs.tag }}"
