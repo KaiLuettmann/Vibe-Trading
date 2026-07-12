@@ -28,7 +28,7 @@ jobs:
         run: |
           git remote add upstream https://github.com/HKUDS/Vibe-Trading.git
           git fetch origin main
-          git fetch upstream --tags
+          git fetch upstream main
 
       - name: Resolve latest upstream release
         id: release
