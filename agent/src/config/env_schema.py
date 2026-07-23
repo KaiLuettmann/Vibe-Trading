@@ -20,6 +20,7 @@ Usage::
 from __future__ import annotations
 
 import os
+
 from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
@@ -32,6 +33,7 @@ __all__ = [
     "SwarmConfig",
     "AgentTuningConfig",
     "PathConfig",
+    "OcrConfig",
 ]
 
 
@@ -125,6 +127,7 @@ class LLMConfig(_EnvBase):
     langchain_provider: str = Field(alias="LANGCHAIN_PROVIDER", default="openai")
     langchain_model_name: str = Field(alias="LANGCHAIN_MODEL_NAME", default="")
     langchain_temperature: float = Field(alias="LANGCHAIN_TEMPERATURE", default=0.0)
+    anthropic_max_tokens: int | None = Field(alias="ANTHROPIC_MAX_TOKENS", default=None, gt=0)
     timeout_seconds: int = Field(alias="TIMEOUT_SECONDS", default=120)
     max_retries: int = Field(alias="MAX_RETRIES", default=2)
     langchain_reasoning_effort: str = Field(alias="LANGCHAIN_REASONING_EFFORT", default="")
@@ -168,6 +171,50 @@ class DataConfig(_EnvBase):
     qveris_api_key: str = Field(alias="QVERIS_API_KEY", default="")
     qveris_base_url: str = Field(alias="QVERIS_BASE_URL", default="")
     rsshub_base_url: str = Field(alias="RSSHUB_BASE_URL", default="")
+    dashscope_api_key: str = Field(alias="DASHSCOPE_API_KEY", default="")
+    longbridge_app_key: str = Field(alias="LONGBRIDGE_APP_KEY", default="")
+    longbridge_app_secret: str = Field(alias="LONGBRIDGE_APP_SECRET", default="")
+    longbridge_access_token: str = Field(alias="LONGBRIDGE_ACCESS_TOKEN", default="")
+
+
+# ---------------------------------------------------------------------------
+# OCR
+# ---------------------------------------------------------------------------
+
+
+class OcrConfig(_EnvBase):
+    """OCR engine selection and model configuration.
+
+    Sources: ``src/tools/ocr/engine.py``, ``src/tools/ocr/llm_vision_ocr.py``.
+    """
+
+    vibe_trading_ocr_engine: str = Field(alias="VIBE_TRADING_OCR_ENGINE", default="auto")
+    vibe_trading_ocr_llm_model: str = Field(alias="VIBE_TRADING_OCR_LLM_MODEL", default="")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _alias_legacy_env_vars(cls, data: dict) -> dict:
+        """Backward compat: VIBE_TRADING_OCR_QWEN_MODEL → VIBE_TRADING_OCR_LLM_MODEL.
+
+        Issue #547 requires a deprecation warning when the legacy env var is
+        present. Pydantic alias validation runs before field assignment, so we
+        read the old env var here and forward it to the new field.
+        """
+        import logging
+
+        old_val = os.getenv("VIBE_TRADING_OCR_QWEN_MODEL", "")
+        new_val = (
+            data.get("vibe_trading_ocr_llm_model")
+            or os.getenv("VIBE_TRADING_OCR_LLM_MODEL", "")
+        )
+        if old_val and not new_val:
+            logging.getLogger(__name__).warning(
+                "VIBE_TRADING_OCR_QWEN_MODEL is deprecated; "
+                "use VIBE_TRADING_OCR_LLM_MODEL instead. "
+                "Alias will be removed in a future release."
+            )
+            data["vibe_trading_ocr_llm_model"] = old_val
+        return data
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +233,12 @@ class APIConfig(_EnvBase):
     vibe_trading_api_key: str = Field(alias="VIBE_TRADING_API_KEY", default="")
     cors_origins: str = Field(alias="CORS_ORIGINS", default="")
     api_allowed_hosts: str = Field(alias="API_ALLOWED_HOSTS", default="")
+    # Comma-separated Host/Origin allow-list for the network MCP transports
+    # (--transport sse / http). Empty means loopback-only (127.0.0.1,
+    # localhost), which blocks DNS-rebinding while keeping local use working.
+    vibe_trading_mcp_allowed_hosts: str = Field(
+        alias="VIBE_TRADING_MCP_ALLOWED_HOSTS", default="",
+    )
     enable_session_runtime: EnvBool = Field(alias="ENABLE_SESSION_RUNTIME", default=True)
     vibe_trading_trust_docker_loopback: EnvBool = Field(
         alias="VIBE_TRADING_TRUST_DOCKER_LOOPBACK", default=False,
@@ -301,6 +354,9 @@ class PathConfig(_EnvBase):
     allow_session_mcp_servers: EnvBool = Field(alias="ALLOW_SESSION_MCP_SERVERS", default=False)
     vibe_trading_theme: str = Field(alias="VIBE_TRADING_THEME", default="")
     vibe_goal_session_id: str = Field(alias="VIBE_GOAL_SESSION_ID", default="")
+    vibe_trading_strategy_store_db_path: str = Field(
+        alias="VIBE_TRADING_STRATEGY_STORE_DB_PATH", default="",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +381,7 @@ class EnvConfig(_EnvBase):
     swarm: SwarmConfig = Field(default_factory=SwarmConfig)
     agent_tuning: AgentTuningConfig = Field(default_factory=AgentTuningConfig)
     paths: PathConfig = Field(default_factory=PathConfig)
+    ocr: OcrConfig = Field(default_factory=OcrConfig)
 
     @model_validator(mode="after")
     def _resolve_api_key_alias(self) -> "EnvConfig":
