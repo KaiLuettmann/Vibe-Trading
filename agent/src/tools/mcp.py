@@ -16,9 +16,16 @@ from typing import Any, Awaitable, Callable, Coroutine, Iterable, Protocol, Type
 from fastmcp.client import Client
 from fastmcp.client.auth import OAuth
 from fastmcp.client.client import CallToolResult
-from fastmcp.client.transports.http import StreamableHttpTransport
-from fastmcp.client.transports.sse import SSETransport
-from fastmcp.client.transports.stdio import StdioTransport
+try:
+    from fastmcp.client.transports.http import StreamableHttpTransport
+    from fastmcp.client.transports.sse import SSETransport
+    from fastmcp.client.transports.stdio import StdioTransport
+except ModuleNotFoundError:
+    from fastmcp.client.transports import (
+        SSETransport,
+        StdioTransport,
+        StreamableHttpTransport,
+    )
 from fastmcp.exceptions import McpError, ToolError
 from key_value.aio.stores.filetree import FileTreeStore, FileTreeV1KeySanitizationStrategy
 from mcp import types as mcp_types
@@ -49,6 +56,30 @@ _TRANSIENT_ERROR_TOKENS = (
 )
 
 ResultT = TypeVar("ResultT")
+
+_MCP_SPECS_CACHE: dict[tuple[str, ...], list["MCPRemoteToolSpec"]] = {}
+_MCP_SPECS_LOCK = threading.Lock()
+
+
+def _make_cache_key(server_name: str, server_config: "MCPServerConfig") -> tuple[str, ...]:
+    """Build a content-based cache key for MCP tool discovery results."""
+    return (
+        server_name,
+        server_config.command,
+        str(server_config.args or []),
+        str(sorted((server_config.env or {}).items())),
+        str(sorted(server_config.enabled_tools or [])),
+    )
+
+
+def invalidate_mcp_specs_cache() -> None:
+    """Clear the MCP tool discovery cache.
+
+    Called by SwarmRuntime at the start of each run to ensure fresh
+    discovery when operator config may have changed between runs.
+    """
+    with _MCP_SPECS_LOCK:
+        _MCP_SPECS_CACHE.clear()
 
 
 class AsyncMCPClient(Protocol):
@@ -138,6 +169,24 @@ def build_mcp_tool_wrappers(
         Exception: Propagates discovery failures so callers can decide whether
             to warn, skip, or abort.
     """
+    # --- Cache lookup (thread-safe) ---
+    # Skip cache when a custom client_factory is provided (test injection).
+    cache_key: tuple[str, ...] | None = None
+    if client_factory is None:
+        cache_key = _make_cache_key(server_name, server_config)
+        with _MCP_SPECS_LOCK:
+            cached_specs = _MCP_SPECS_CACHE.get(cache_key)
+        if cached_specs is not None:
+            adapter = MCPServerAdapter(
+                server_name,
+                server_config,
+                local_server_name=local_server_name,
+                client_factory=client_factory,
+                max_list_tools_attempts=max_list_tools_attempts,
+            )
+            return [MCPRemoteTool(adapter=adapter, spec=spec) for spec in cached_specs]
+
+    # --- Original logic (cache miss) ---
     adapter = MCPServerAdapter(
         server_name,
         server_config,
@@ -145,7 +194,14 @@ def build_mcp_tool_wrappers(
         client_factory=client_factory,
         max_list_tools_attempts=max_list_tools_attempts,
     )
-    return [MCPRemoteTool(adapter=adapter, spec=spec) for spec in adapter.discover_tools()]
+    specs = adapter.discover_tools()
+
+    # Store in cache (only for production path, not test injection)
+    if cache_key is not None:
+        with _MCP_SPECS_LOCK:
+            _MCP_SPECS_CACHE[cache_key] = specs
+
+    return [MCPRemoteTool(adapter=adapter, spec=spec) for spec in specs]
 
 
 def make_mcp_tool_name(server_name: str, tool_name: str) -> str:
@@ -1066,6 +1122,7 @@ __all__ = [
     "MCPServerAdapter",
     "build_mcp_tool_wrappers",
     "format_mcp_server_name_collision_warning",
+    "invalidate_mcp_specs_cache",
     "make_mcp_tool_name",
     "normalize_mcp_tool_schema",
     "resolve_mcp_server_tool_name_segments",
