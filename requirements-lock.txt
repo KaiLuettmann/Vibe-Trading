@@ -3573,6 +3573,12 @@ six==1.17.0 \
     # via
     #   html5lib
     #   python-dateutil
+setuptools==82.0.1 \
+    --hash=sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9 \
+    --hash=sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb
+    # via
+    #   aiofile
+    #   caio
 smartmoneyconcepts==0.0.27 \
     --hash=sha256:aa5094fa3a361abbbbba358fe885d859537e2eba27374a934e28db353b97ae9b \
     --hash=sha256:f1b28cdbe869de5f5eb845d2cf2c99f74f18f9c9d7d948d12ec5ada42af5abd9
