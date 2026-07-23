@@ -62,7 +62,21 @@ jobs:
           TAG="${{ steps.release.outputs.tag }}"
           BRANCH="sync-release-$TAG"
           git checkout -B "$BRANCH" origin/main
-          git merge --no-edit "refs/tags/upstream-$TAG"
+
+          if ! git merge --no-commit --no-ff "refs/tags/upstream-$TAG"; then
+            unresolved=$(git diff --name-only --diff-filter=U)
+
+            if [ "$unresolved" != "Dockerfile" ]; then
+              echo "Unresolved merge conflicts:"
+              printf '%s\n' "$unresolved"
+              exit 1
+            fi
+
+            git checkout --theirs Dockerfile
+            git add Dockerfile
+          fi
+
+          git commit --no-edit
           git push --force-with-lease origin "$BRANCH"
 
       - name: Create or update sync pull request
