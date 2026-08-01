@@ -34,7 +34,8 @@ WORKDIR /app
 # agent/requirements.txt changes).
 COPY agent/requirements.txt agent/requirements.txt
 COPY requirements-lock.txt requirements-lock.txt
-RUN pip install --no-cache-dir -r requirements-lock.txt
+RUN sed '/^[[:space:]]*--hash=/d' requirements-lock.txt > requirements-install.txt \
+    && pip install --no-cache-dir -r requirements-install.txt
 
 # Copy project + install the CLI entrypoint (editable — the runtime stage
 # re-creates the same /app/agent source tree the .pth file points at).
