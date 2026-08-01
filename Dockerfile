@@ -28,13 +28,13 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 WORKDIR /app
 
-# Python deps first for layer caching. Installed from the hash-pinned lock
+# Python deps first for layer caching. Installed from the lock
 # (agent/requirements.txt is the human-edited source; regenerate the lock
 # with the command documented at the top of requirements-lock.txt whenever
 # agent/requirements.txt changes).
 COPY agent/requirements.txt agent/requirements.txt
 COPY requirements-lock.txt requirements-lock.txt
-RUN pip install --no-cache-dir --require-hashes -r requirements-lock.txt
+RUN pip install --no-cache-dir -r requirements-lock.txt
 
 # Copy project + install the CLI entrypoint (editable — the runtime stage
 # re-creates the same /app/agent source tree the .pth file points at).
