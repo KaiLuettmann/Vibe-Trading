@@ -127,4 +127,4 @@ jobs:
               --jq '.[0].number // empty')
           fi
 
-          gh pr merge "$PR_NUMBER" --auto --merge
+          echo "Sync pull request #$PR_NUMBER is ready for manual merge."
