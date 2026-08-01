@@ -4354,7 +4354,11 @@ xxhash==3.8.1 \
     # via
     #   langgraph
     #   langsmith
-yarl==1.24.5 \
+yarl==1.24.2 \
+    --hash=sha256:0a6377060e7927187a42b7eb202090cbe2b34933a4eeaf90e3bd9e33432e5cae \
+    --hash=sha256:2783d9226db8797636cd6896e4de81feed252d1db72265686c9558d97a4d94b9 \
+    --hash=sha256:49016d82f032b1bd1e10b01078a7d29ae71bf468eeae0ea22df8bab691e60003 \
+    --hash=sha256:9ac374123c6fd7abf64d1fec93962b0bd4ee2c19751755a762a72dd96c0378f8 \
     --hash=sha256:0055afc45e864b92729ac7600e2d102c17bef060647e74bca75fa84d66b9ff36 \
     --hash=sha256:0465ec8cedc2349b97a6b595ace64084a50c6e839eca40aa0626f38b8350e331 \
     --hash=sha256:0ebfaffe1a16cb72141c8e09f18cc76856dbe58639f393a4f2b26e474b96b871 \
@@ -4591,4 +4595,3 @@ zstandard==0.25.0 \
 # pinned when the requirements file includes hashes and the requirement is not
 # satisfied by a package already installed. Consider using the --allow-unsafe flag.
 # setuptools
-
