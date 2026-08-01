@@ -78,14 +78,19 @@ jobs:
           git checkout -B "$BRANCH" origin/main
           if ! git merge --no-edit "refs/tags/upstream-$TAG"; then
             conflicts=$(git diff --name-only --diff-filter=U)
-            if [ "$conflicts" != "requirements-lock.txt" ]; then
-              echo "Unexpected merge conflicts:"
-              printf '%s\n' "$conflicts"
-              exit 1
-            fi
-            git checkout --ours requirements-lock.txt
-            git add requirements-lock.txt
-            git commit -m "chore(sync): keep fork lockfile fixes"
+            for conflict in $conflicts; do
+              case "$conflict" in
+                Dockerfile|requirements-lock.txt)
+                  git checkout --ours "$conflict"
+                  git add "$conflict"
+                  ;;
+                *)
+                  echo "Unexpected merge conflict: $conflict"
+                  exit 1
+                  ;;
+              esac
+            done
+            git commit -m "chore(sync): keep fork Docker and lockfile settings"
           fi
           git push --force-with-lease origin "$BRANCH"
 
