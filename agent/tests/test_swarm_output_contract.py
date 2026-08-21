@@ -79,6 +79,72 @@ def test_raw_tool_envelope_is_rejected():
     assert _classify_deliverable(txt, is_data_agent=False, report_written=False, data_tool_calls=1)
 
 
+def test_raw_ok_data_envelope_is_rejected():
+    """Real success shape from get_fundamentals_tool.py, no top-level status key."""
+    txt = (
+        '{"ok": true, "source": "yfinance", "freq": "annual", "pit": false, '
+        '"symbols": ["AAPL.US"], "fields": ["revenue"], "data": {"revenue": [1, 2, 3]}}'
+    )
+    assert _classify_deliverable(
+        txt, is_data_agent=True, report_written=False, data_tool_calls=1
+    )
+
+
+def test_raw_ok_non_data_payload_envelope_is_rejected():
+    """Real success shape from research_papers_tool.py: uses "papers" as the
+    payload key, not "data". Proves the fix does not depend on the payload
+    key name, only on the repository's real ok/success discriminator."""
+    txt = (
+        '{"ok": true, "mode": "read", "source": "arxiv", '
+        '"disclaimer": "not investment advice", "requested": 1, "returned": 1, '
+        '"missing_ids": [], "papers": [{"id": "1234.5678", "title": "Example"}], '
+        '"next_actions": ["read_more"]}'
+    )
+    assert _classify_deliverable(
+        txt, is_data_agent=True, report_written=False, data_tool_calls=1
+    )
+
+
+def test_raw_success_envelope_is_rejected():
+    """SYNTHETIC: no current Vibe-Trading tool emits a top-level "success" key
+    (confirmed by repository survey). This branch exists only for consistency
+    with the sibling _is_tool_success / _is_error_result classifiers, which
+    already check both ok and success defensively."""
+    txt = '{"success": true, "data": {"x": 1}}'
+    assert _classify_deliverable(
+        txt, is_data_agent=True, report_written=False, data_tool_calls=1
+    )
+
+
+def test_prose_mentioning_ok_or_success_as_words_is_not_rejected():
+    """Control: legitimate prose that happens to contain the words ok/success
+    must not be misclassified, the check requires the text to start with
+    "{" before any key inspection happens."""
+    txt = "The fundamentals look ok and the outlook is a success story overall."
+    assert (
+        _classify_deliverable(
+            txt, is_data_agent=False, report_written=False, data_tool_calls=0
+        )
+        is None
+    )
+
+
+def test_json_with_late_ok_key_is_a_known_heuristic_limitation():
+    """Documents a known, accepted limitation: the character-window heuristic
+    only looks at the first 40/300 chars, matching the repository's own
+    existing convention for the status/content branch. Every real ok/success
+    tool in this repository puts ok/success first (verified across all 29
+    producers), so this is not expected to occur in practice."""
+    padding = "x" * 60
+    txt = '{"' + padding + '": 1, "ok": true, "data": {}}'
+    assert (
+        _classify_deliverable(
+            txt, is_data_agent=True, report_written=False, data_tool_calls=1
+        )
+        is None
+    )
+
+
 def test_data_agent_without_evidence_is_rejected():
     assert _classify_deliverable(REAL_REPORT, is_data_agent=True, report_written=False, data_tool_calls=0)
 
@@ -280,6 +346,9 @@ class _ScriptedLLM:
     def stream_chat(self, messages, tools=None, timeout=None, on_text_chunk=None):
         return self._responses.pop(0)
 
+    def close(self) -> None:
+        """No-op: the scripted stub owns no HTTP client."""
+
 
 @pytest.mark.parametrize(
     ("result", "raises", "expected_event_status", "expected_worker_status"),
@@ -362,3 +431,98 @@ def test_collect_artifacts_rejects_symlink_escape(tmp_path: Path) -> None:
         pytest.skip("symlinks are not available on this platform")
 
     assert _collect_artifacts(artifact_dir) == []
+
+
+# ---------------------------------------------------------------------------
+# ChatLLM lifecycle: run_worker must close the per-task LLM (regression #1141)
+# ---------------------------------------------------------------------------
+
+
+def test_run_worker_closes_llm_on_success(monkeypatch, tmp_path: Path) -> None:
+    """A successful run must close the per-task ChatLLM exactly once."""
+    import src.swarm.worker as worker_mod
+
+    registry = ToolRegistry()
+    registry.register(_ResultTool("done", raises=False))
+    monkeypatch.setattr(
+        worker_mod, "build_swarm_registry", lambda *args, **kwargs: registry
+    )
+    closed = []
+
+    class _TrackingLLM(_ScriptedLLM):
+        def close(self) -> None:
+            closed.append(1)
+
+    monkeypatch.setattr(
+        worker_mod, "ChatLLM", lambda *args, **kwargs: _TrackingLLM()
+    )
+
+    worker_result = run_worker(
+        agent_spec=SwarmAgentSpec(
+            id="analyst",
+            role="Analyst",
+            system_prompt="Analyse the result.",
+            tools=["market_probe"],
+            max_iterations=3,
+        ),
+        task=SwarmTask(
+            id="task", agent_id="analyst", prompt_template="Probe the market."
+        ),
+        upstream_summaries={},
+        user_vars={},
+        run_dir=tmp_path,
+    )
+    assert worker_result.status.value == "completed"
+    assert len(closed) == 1, f"close must be called exactly once, got {len(closed)}"
+
+
+def test_run_worker_closes_llm_on_tool_exception(monkeypatch, tmp_path: Path) -> None:
+    """close() must fire even when the run dies on a tool exception."""
+    import src.swarm.worker as worker_mod
+
+    registry = ToolRegistry()
+    registry.register(_ResultTool("boom", raises=True))
+    monkeypatch.setattr(
+        worker_mod, "build_swarm_registry", lambda *args, **kwargs: registry
+    )
+    closed = []
+
+    class _TrackingLLM(_ScriptedLLM):
+        def close(self) -> None:
+            closed.append(1)
+
+    monkeypatch.setattr(
+        worker_mod, "ChatLLM", lambda *args, **kwargs: _TrackingLLM()
+    )
+
+    worker_result = run_worker(
+        agent_spec=SwarmAgentSpec(
+            id="analyst",
+            role="Analyst",
+            system_prompt="Analyse the result.",
+            tools=["market_probe"],
+            max_iterations=3,
+        ),
+        task=SwarmTask(
+            id="task", agent_id="analyst", prompt_template="Probe the market."
+        ),
+        upstream_summaries={},
+        user_vars={},
+        run_dir=tmp_path,
+    )
+    assert worker_result.status.value == "incomplete"
+    assert len(closed) == 1, f"close must fire on failure path, got {len(closed)}"
+
+
+def test_chatllm_close_is_best_effort_noop_without_client() -> None:
+    """ChatLLM.close() must not raise when the provider adapter has no
+    closeable client (e.g. scripted/native adapters without root_client)."""
+    from src.providers.chat import ChatLLM
+
+    class _BareLLM:
+        def bind_tools(self, tools):
+            return self
+
+    llm = ChatLLM.__new__(ChatLLM)
+    llm._llm = _BareLLM()  # no root_client / client attributes
+    llm.close()  # must not raise
