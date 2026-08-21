@@ -4,7 +4,7 @@ import type { EquityPoint } from "@/lib/api";
 import { getChartTheme } from "@/lib/chart-theme";
 import { abbreviateNum } from "@/lib/formatters";
 import { echarts, CHART_GROUP, connectCharts } from "@/lib/echarts";
-import { useThemeDark } from "@/lib/theme-store";
+import { useDarkMode } from "@/hooks/useDarkMode";
 
 interface Props {
   data: EquityPoint[];
@@ -13,7 +13,7 @@ interface Props {
 
 export function EquityChart({ data, height = 300 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const dark = useThemeDark();
+  const { dark } = useDarkMode();
 
   useEffect(() => {
     if (!ref.current || data.length === 0) return;
@@ -101,20 +101,9 @@ export function EquityChart({ data, height = 300 }: Props) {
       ],
     });
 
-    let resizeFrame: number | null = null;
-    const ro = new ResizeObserver(() => {
-      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
-      resizeFrame = requestAnimationFrame(() => {
-        resizeFrame = null;
-        chart.resize();
-      });
-    });
+    const ro = new ResizeObserver(() => chart.resize());
     ro.observe(ref.current!);
-    return () => {
-      ro.disconnect();
-      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
-      chart.dispose();
-    };
+    return () => { ro.disconnect(); chart.dispose(); };
   }, [data, dark]);
 
   if (data.length === 0) {

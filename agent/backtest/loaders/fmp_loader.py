@@ -118,7 +118,7 @@ class DataLoader:
         """
         validate_date_range(start_date, end_date)
 
-        if str(interval).strip().lower() not in {"1d", "d", "day", "daily"}:
+        if interval != "1D":
             logger.warning("fmp only supports 1D bars; got interval=%r", interval)
             return {}
 

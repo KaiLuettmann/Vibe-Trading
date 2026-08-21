@@ -1,24 +1,18 @@
 """TraceWriter: crash-safe JSONL trace writer.
 
-One JSON record per line; each write is flushed and fsynced so the record
-survives an immediate host crash. Large fields are written to sidecar files
-(temp-write -> fsync -> ``os.replace`` -> directory fsync) BEFORE the record
-that references them is fsynced, so a durable record never points at a
-missing or truncated sidecar. Sidecars keep traces complete without turning
-every CLI/history read into a giant file load.
+One JSON record per line; append + flush keeps the trace useful after crashes.
+Large fields are written to sidecar files so traces can preserve full content
+without turning every CLI/history read into a giant file load.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
-
-logger = logging.getLogger(__name__)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -76,28 +70,12 @@ class TraceWriter:
             dir_path: Directory where trace files are written.
         """
         self.dir_path = dir_path
-        self.path = self.dir_path / "trace.jsonl"
-        self._fsync_warned = False
         self.dir_path.mkdir(parents=True, exist_ok=True)
-        created = not self.path.exists()
+        self.path = self.dir_path / "trace.jsonl"
         self._file = open(self.path, "a", encoding="utf-8")
-        try:
-            if created:
-                # Make the new trace.jsonl directory entry itself durable.
-                self._fsync_dir(self.dir_path)
-        except Exception:
-            self._file.close()
-            raise
 
     def write(self, entry: Dict[str, Any]) -> None:
-        """Write a trace record, flushed and fsynced for crash safety.
-
-        ``flush`` alone only moves bytes into the OS page cache; a host
-        crash or container kill would lose the last records. Trace volume
-        is low (one entry per LLM/tool event), so one fsync per record is
-        an acceptable cost for post-mortem visibility. If fsync fails
-        (e.g. unsupported filesystem), a warning is logged once and writes
-        continue flush-only.
+        """Write a trace record.
 
         Args:
             entry: Trace entry; a ``ts`` field is added automatically.
@@ -106,10 +84,6 @@ class TraceWriter:
             entry["ts"] = time.time()
         self._file.write(json.dumps(entry, ensure_ascii=False) + "\n")
         self._file.flush()
-        try:
-            os.fsync(self._file.fileno())
-        except OSError as exc:
-            self._warn_fsync_failure(exc, self.path)
 
     def write_text_entry(
         self,
@@ -193,111 +167,19 @@ class TraceWriter:
         offload_dir_name: str,
         preview_field: str | None = None,
     ) -> None:
-        """Attach text inline or as a sidecar path.
-
-        The sidecar is written atomically and durably here, BEFORE the
-        caller writes (and fsyncs) the record that references it, so a
-        crash never leaves a durable record pointing at a missing or
-        truncated sidecar.
-        """
+        """Attach text inline or as a sidecar path."""
         if len(value) <= threshold:
             entry[field] = value
             return
 
         offload_dir = self.dir_path / offload_dir_name
-        if not offload_dir.is_dir():
-            offload_dir.mkdir(parents=True, exist_ok=True)
-            # Make the new sidecar directory entry itself durable.
-            self._fsync_dir(self.dir_path)
+        offload_dir.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha256(f"{offload_kind}\0{value}".encode("utf-8")).hexdigest()
         path = offload_dir / f"{digest[:24]}.txt"
-        self._write_sidecar_durable(path, value)
+        path.write_text(value, encoding="utf-8")
         entry[f"{field}_path"] = f"{offload_dir_name}/{path.name}"
         entry[preview_field or f"{field}_preview"] = value[:OFFLOAD_PREVIEW_CHARS]
         entry[f"{field}_size"] = len(value)
-
-    def _write_sidecar_durable(self, path: Path, value: str) -> None:
-        """Atomically write a sidecar blob, durably where the filesystem allows.
-
-        Write sequence: temp file in the same directory -> write every byte ->
-        fsync -> ``os.replace`` -> parent-directory fsync. The rename is what
-        makes it atomic: a crash leaves either no sidecar or a complete one,
-        never a partial write under the final name. Because the blob is fully
-        renamed into place before the caller writes the record that points at
-        it, a record never references a sidecar that is not on disk.
-
-        Durability against a HOST crash additionally needs fsync. Where fsync
-        is unsupported the error is logged once and the write still completes:
-        the sidecar is present and readable, only its survival across a power
-        loss is not guaranteed. Failing the run instead would lose the trace
-        outright, which is the worse outcome for a diagnostic artifact.
-
-        Args:
-            path: Final sidecar path.
-            value: Full text to persist.
-
-        Raises:
-            OSError: When the blob cannot be written or renamed at all. The
-                caller must not write the referencing record in that case.
-        """
-        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        try:
-            payload = value.encode("utf-8")
-            written = 0
-            # os.write may write fewer bytes than requested; a single call can
-            # silently truncate a large sidecar.
-            while written < len(payload):
-                written += os.write(fd, payload[written:])
-            try:
-                os.fsync(fd)
-            except OSError as exc:
-                self._warn_fsync_failure(exc, tmp)
-        except BaseException:
-            os.close(fd)
-            # Never leave a half-written temp file behind for the next run.
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
-        else:
-            os.close(fd)
-        os.replace(tmp, path)
-        self._fsync_dir(path.parent)
-
-    def _fsync_dir(self, directory: Path) -> None:
-        """Fsync a directory so new/renamed entries survive a crash.
-
-        Args:
-            directory: Directory whose entry table should be flushed.
-        """
-        try:
-            dir_fd = os.open(directory, os.O_RDONLY)
-        except OSError:
-            return
-        try:
-            os.fsync(dir_fd)
-        except OSError as exc:
-            self._warn_fsync_failure(exc, directory)
-        finally:
-            os.close(dir_fd)
-
-    def _warn_fsync_failure(self, exc: OSError, target: Path) -> None:
-        """Log the first fsync failure for this writer, then stay quiet.
-
-        Args:
-            exc: The fsync error.
-            target: File or directory whose fsync failed.
-        """
-        if self._fsync_warned:
-            return
-        self._fsync_warned = True
-        logger.warning(
-            "trace fsync failed on %s (%s); trace durability degraded to flush-only for this writer",
-            target,
-            exc,
-        )
 
     @staticmethod
     def read(
@@ -379,22 +261,17 @@ class TraceWriter:
 
         Args:
             run_id: Run or session ID.
-            runs_dir: Base runs directory. Defaults to the user-level
-                runs dir under the runtime root.
-            sessions_dir: Base sessions directory. Defaults to the
-                user-level sessions dir under the runtime root.
+            runs_dir: Base runs directory. Defaults to ``agent/runs``.
+            sessions_dir: Base sessions directory. Defaults to
+                ``agent/sessions``.
 
         Returns:
             Directory containing ``trace.jsonl``, or ``None`` when absent.
         """
         if sessions_dir is None:
-            from src.config.paths import get_sessions_dir
-
-            sessions_dir = get_sessions_dir()
+            sessions_dir = Path(__file__).resolve().parents[2] / "sessions"
         if runs_dir is None:
-            from src.config.paths import get_runs_dir
-
-            runs_dir = get_runs_dir()
+            runs_dir = Path(__file__).resolve().parents[2] / "runs"
 
         session_dir = sessions_dir / run_id
         if (session_dir / "trace.jsonl").exists():

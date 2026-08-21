@@ -65,7 +65,7 @@ def _clamp_horizon(horizon_days: Any) -> int:
     """
     try:
         value = int(horizon_days)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError):
         return _DEFAULT_HORIZON_DAYS
     if value < 1:
         return 1
@@ -235,9 +235,8 @@ def get_lockup_expiry(code: str | None, horizon_days: int) -> str:
     """
     horizon = _clamp_horizon(horizon_days)
     bare_code: str | None = None
-    code_str = str(code).strip() if code is not None else ""
-    if code_str:
-        bare_code = _normalize_code(code_str)
+    if code and code.strip():
+        bare_code = _normalize_code(code)
         if bare_code is None:
             return json.dumps(
                 {

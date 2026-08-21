@@ -41,7 +41,6 @@ from typing import Any
 
 import pandas as pd
 
-from backtest.loaders.cn_adjust import apply_qfq as _apply_qfq
 from src.agent.tools import BaseTool
 from src.config.accessor import get_env_config
 
@@ -324,47 +323,23 @@ def _load_csi300_panel(start: str, end: str) -> dict[str, pd.DataFrame]:
     ed = end.replace("-", "")
 
     codes: list[str] = []
-    constituent_source = "tushare index_weight"
-    constituent_source_date: str | None = None
-    membership: pd.DataFrame | None = None
     try:
-        # Reach back before ``start`` so the snapshot that was in force on the
-        # first requested day is included; Tushare publishes month-end rosters.
-        lookback = (pd.Timestamp(start) - pd.Timedelta(days=60)).strftime("%Y%m%d")
         weights = pro.index_weight(
-            index_code="399300.SZ", start_date=lookback, end_date=ed
+            index_code="399300.SZ", start_date=sd, end_date=ed
         )
         if weights is not None and not weights.empty:
-            frame = weights.copy()
-            frame["trade_date"] = pd.to_datetime(frame["trade_date"], errors="coerce")
-            frame = frame.dropna(subset=["trade_date", "con_code"])
-            constituent_source_date = str(weights["trade_date"].max())
-            # Every name that was a member at any point in the window, so the
-            # panel can carry a name that later left the index.
-            codes = sorted(frame["con_code"].astype(str).unique())
-            membership = (
-                frame.assign(_member=True)
-                .pivot_table(
-                    index="trade_date",
-                    columns="con_code",
-                    values="_member",
-                    aggfunc="first",
-                )
-                .notna()
-                .sort_index()
+            latest_date = weights["trade_date"].max()
+            codes = (
+                weights[weights["trade_date"] == latest_date]["con_code"]
+                .drop_duplicates()
+                .tolist()
             )
-            logger.info(
-                "csi300: %d names ever a member across %d roster snapshots",
-                len(codes),
-                len(membership),
-            )
+            logger.info("csi300: %d constituents from index_weight @ %s", len(codes), latest_date)
     except Exception as exc:  # noqa: BLE001
         logger.warning("csi300 index_weight failed (%s); using fallback list", exc)
 
     if not codes:
         codes = list(_CSI300_FALLBACK_CODES)
-        constituent_source = "hand-picked fallback"
-        constituent_source_date = None
         logger.warning("csi300: using %d-name fallback (degraded run)", len(codes))
 
     # Fetch raw daily in parallel — we need ``amount`` which the standard
@@ -382,9 +357,7 @@ def _load_csi300_panel(start: str, end: str) -> dict[str, pd.DataFrame]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
         keep = [c for c in ("open", "high", "low", "close", "volume", "amount") if c in df.columns]
-        df = df[keep].dropna(subset=["open", "high", "low", "close"])
-        factor = _retry(lambda: pro.adj_factor(ts_code=code, start_date=sd, end_date=ed))
-        return code, _apply_qfq(df, factor)
+        return code, df[keep].dropna(subset=["open", "high", "low", "close"])
 
     fetched: dict[str, pd.DataFrame] = {}
     with ThreadPoolExecutor(max_workers=_CSI300_FETCH_WORKERS) as pool:
@@ -398,26 +371,6 @@ def _load_csi300_panel(start: str, end: str) -> dict[str, pd.DataFrame]:
             if frame is not None and not frame.empty:
                 fetched[code] = frame
 
-    # A name with no usable adjustment factors is dropped rather than benched on
-    # raw prices, so the drop has to be visible or it becomes its own silent bias.
-    dropped = sorted(set(codes) - set(fetched))
-    if not fetched:
-        raise RuntimeError(
-            "csi300: no symbol survived corporate-action adjustment — "
-            "pro.adj_factor returned nothing usable for any of the "
-            f"{len(codes)} names, which usually means the Tushare token lacks "
-            "adj_factor permission. Benching on unadjusted prices is not an "
-            "alternative: an ex-date injects a fabricated cross-sectional "
-            "return, measured at -47.2% on 300750.SZ 2023-04-26."
-        )
-    if dropped:
-        logger.warning(
-            "csi300: dropped %d/%d name(s) with no usable adjustment factors: %s",
-            len(dropped),
-            len(codes),
-            ", ".join(dropped[:10]) + ("..." if len(dropped) > 10 else ""),
-        )
-
     panel = _wide_from_fetched(fetched, include_amount=True)
     # CN equity vwap: Tushare ``amount`` is in 千元, ``volume`` in 手. True VWAP
     # = (amount * 1000 CNY) / (volume * 100 shares). Matches
@@ -428,39 +381,6 @@ def _load_csi300_panel(start: str, end: str) -> dict[str, pd.DataFrame]:
         panel["vwap"] = safe_div(
             panel["amount"] * 1000.0, panel["volume"] * 100.0 + 1.0
         )
-
-    # Restrict each date's cross-section to the names that were index members on
-    # that date. Without this the panel carries today's roster back through the
-    # whole window, so a name is only present because it survived to the end —
-    # every IC is then measured on a set selected with hindsight.
-    if membership is not None:
-        mask = (
-            membership.reindex(columns=panel["close"].columns)
-            .reindex(index=panel["close"].index.union(membership.index))
-            .ffill()
-            .reindex(panel["close"].index)
-            .bfill()
-            .fillna(False)
-            .astype(bool)
-        )
-        for key, frame in panel.items():
-            if isinstance(frame, pd.DataFrame):
-                panel[key] = frame.where(mask)
-
-    panel["_meta"] = {
-        "universe": "csi300",
-        # True only on the degraded path: the hand-picked fallback is a
-        # survivor-selected static roster with no point-in-time membership.
-        "survivorship_bias": membership is None,
-        "pit_membership": membership is not None,
-        "degraded": constituent_source != "tushare index_weight",
-        "constituent_source": constituent_source,
-        "constituent_source_date": constituent_source_date,
-        "constituent_count": len(codes),
-        # Prices are corporate-action adjusted; raw pro.daily is not.
-        "price_adjustment": "qfq",
-        "dropped_unadjustable": len(dropped),
-    }
     return panel
 
 
@@ -476,17 +396,14 @@ def _load_sp500_panel(start: str, end: str) -> dict[str, pd.DataFrame]:
     """
     codes = _fetch_sp500_constituents()
     constituent_source = "wikipedia"
-    constituent_source_date: str | None = _SP500_CONSTITUENT_SOURCE_DATE
     if not codes:
         codes = list(_SP500_FALLBACK_CODES)
         constituent_source = "hand-picked fallback"
-        constituent_source_date = None
         logger.warning("sp500: using %d-name fallback (degraded run)", len(codes))
 
     logger.warning(
         "SP500 universe uses current constituents (%s @ %s) → survivorship-biased",
-        constituent_source,
-        constituent_source_date,
+        constituent_source, _SP500_CONSTITUENT_SOURCE_DATE,
     )
 
     # yfinance loader expects project-style symbols (``AAPL.US``).
@@ -506,9 +423,8 @@ def _load_sp500_panel(start: str, end: str) -> dict[str, pd.DataFrame]:
     panel["_meta"] = {
         "universe": "sp500",
         "survivorship_bias": True,
-        "degraded": constituent_source == "hand-picked fallback",
         "constituent_source": constituent_source,
-        "constituent_source_date": constituent_source_date,
+        "constituent_source_date": _SP500_CONSTITUENT_SOURCE_DATE,
         "constituent_count": len(codes),
     }
     return panel
@@ -909,7 +825,7 @@ def run_alpha_bench(**kwargs: Any) -> dict[str, Any]:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    report_path = output_dir / f"alpha_bench_{ts}_{secrets.token_hex(16)}.html"
+    report_path = output_dir / f"alpha_bench_{ts}.html"
 
     context = {
         "csp": _CSP,
@@ -924,11 +840,7 @@ def run_alpha_bench(**kwargs: Any) -> dict[str, Any]:
     }
 
     try:
-        report_html = _render_html(context)
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-        report_fd = os.open(report_path, flags, 0o666)
-        with os.fdopen(report_fd, "w", encoding="utf-8") as report_file:
-            report_file.write(report_html)
+        report_path.write_text(_render_html(context), encoding="utf-8")
     except OSError as exc:
         return {"status": "error", "error": f"failed to write report: {exc}"}
 

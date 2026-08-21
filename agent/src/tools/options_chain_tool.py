@@ -106,7 +106,7 @@ def _coerce_expiration(value: Any) -> Optional[int]:
         return None
     try:
         return int(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError):
         return None
 
 

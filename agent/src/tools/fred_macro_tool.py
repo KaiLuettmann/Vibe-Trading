@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 from backtest.loaders._http import resolve_min_interval, throttled_get_json
@@ -228,7 +229,7 @@ def _clamp_limit(value: Any) -> int:
     """Coerce a requested observation count into the supported range."""
     try:
         n = int(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError):
         return _DEFAULT_LIMIT
     return max(1, min(n, _MAX_LIMIT))
 

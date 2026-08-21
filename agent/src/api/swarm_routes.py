@@ -6,6 +6,7 @@ Mounted by ``agent/api_server.py`` via ``register_swarm_routes(app, ...)``.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -24,10 +25,12 @@ def _get_swarm_runtime():
     if _swarm_runtime is not None:
         return _swarm_runtime
     from src.config import load_swarm_agent_config
-    from src.swarm.store import SwarmStore, swarm_runs_root
+    from src.swarm.store import SwarmStore
     from src.swarm.runtime import SwarmRuntime
 
-    store = SwarmStore(base_dir=swarm_runs_root())
+    # Adjust path: this file is at agent/src/api/, so parent.parent.parent = agent/
+    swarm_dir = Path(__file__).resolve().parent.parent.parent / ".swarm" / "runs"
+    store = SwarmStore(base_dir=swarm_dir)
     # Boot-time / operator-trusted: REST API callers cannot influence the
     # config path. See docs/2026-05-25_swarm_mcp_tools_roadmap.md.
     agent_config = load_swarm_agent_config()
@@ -76,14 +79,9 @@ def register_swarm_routes(
 
     # --- Routes ---
 
-    @app.get("/swarm/presets", dependencies=[Depends(require_auth)])
+    @app.get("/swarm/presets")
     async def list_swarm_presets():
-        """List Swarm YAML presets.
-
-        Authenticated for the same reason as ``/skills``: the preset inventory
-        describes configured agent capabilities and should not be readable by a
-        peer that cannot start a swarm run.
-        """
+        """List Swarm YAML presets."""
         from src.swarm.presets import list_presets
 
         return list_presets()

@@ -23,10 +23,7 @@ class MarketDataTool(BaseTool):
             "codes": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": (
-                    'Symbols such as ["AAPL.US"], ["700.HK"], ["TD.TO"], '
-                    '["PNG.V"], or ["BTC-USDT"].'
-                ),
+                "description": 'Symbols such as ["AAPL.US"], ["700.HK"], ["BTC-USDT"].',
             },
             "start_date": {
                 "type": "string",
@@ -58,21 +55,17 @@ class MarketDataTool(BaseTool):
                     "tiingo",
                     "fmp",
                     "mt5",
-                    "pykrx",
                 ],
                 "description": (
                     "Data source. 'auto' detects from symbol format with fallback. "
                     "Use 'longbridge' explicitly for US/HK OHLCV through the "
                     "Longbridge OpenAPI (requires Longbridge credentials). "
-                    "Free, no key: yfinance/yahoo (US/HK/Canada equities; "
-                    "Canada uses .TO/.V), okx/ccxt "
+                    "Free, no key: yfinance/yahoo (US/HK equities), okx/ccxt "
                     "(crypto), baostock/tencent/eastmoney/sina/akshare/mootdx "
-                    "(China A-shares), stooq (global EOD), pykrx (Korea KRX daily "
-                    "bars for <CODE>.KS / <CODE>.KQ; needs the optional pykrx "
-                    "package, else Korea falls back to yahoo/yfinance). Key-gated "
-                    "REST: tushare (China A-shares), finnhub/alphavantage/tiingo/fmp "
-                    "(US/global). mt5: forex/metals from a local MetaTrader 5 "
-                    "terminal (Windows; e.g. EUR/USD, XAUUSD.FX)."
+                    "(China A-shares), stooq (global EOD). Key-gated REST: tushare "
+                    "(China A-shares), finnhub/alphavantage/tiingo/fmp (US/global). "
+                    "mt5: forex/metals from a local MetaTrader 5 terminal (Windows; "
+                    "e.g. EUR/USD, XAUUSD.FX)."
                 ),
                 "default": "auto",
             },
@@ -99,5 +92,4 @@ class MarketDataTool(BaseTool):
             source=kwargs.get("source", "auto"),
             interval=kwargs.get("interval", "1D"),
             max_rows=kwargs.get("max_rows", DEFAULT_MAX_ROWS),
-            include_provenance=True,
         )

@@ -14,10 +14,7 @@ from src.agent.tools import BaseTool
 logger = logging.getLogger(__name__)
 
 _VALID_FREQS = ("annual", "quarterly", "ttm")
-# Mirrors what ``load_fundamental_panel`` actually accepts. Advertising
-# ``eastmoney``/``tushare`` here made the agent pick a source the loader rejects
-# at runtime.
-_VALID_SOURCES = ("auto", "sec")
+_VALID_SOURCES = ("auto", "sec", "eastmoney", "tushare")
 
 
 def _error(message: str) -> str:
@@ -77,11 +74,7 @@ class GetFundamentalsTool(BaseTool):
             "symbols": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": (
-                    "US tickers, with or without a .US suffix, e.g. "
-                    '["AAPL", "MSFT.US", "BRK-B"]. This tool is US-only: it '
-                    "reads SEC XBRL, so A-share and HK symbols are rejected."
-                ),
+                "description": 'Symbols such as ["AAPL.US", "600519.SH", "00700.HK"].',
             },
             "fields": {
                 "type": "array",

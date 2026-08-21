@@ -51,7 +51,6 @@ VALID_SOURCES: set[str] = {
     "fmp",
     "qveris",  # QVERIS-INTEGRATION
     "india_broker",
-    "pykrx",
     "longbridge",
     "mt5",
     "local",
@@ -101,7 +100,6 @@ def _ensure_registered() -> None:
         "backtest.loaders.fmp_loader",
         "backtest.loaders.qveris_loader",  # QVERIS-INTEGRATION
         "backtest.loaders.india_broker_loader",
-        "backtest.loaders.pykrx_loader",
         "backtest.loaders.longbridge",
         "backtest.loaders.mt5_loader",
         "backtest.loaders.local_loader",
@@ -136,14 +134,8 @@ _NO_NETWORK_FALLBACK_SOURCES: frozenset[str] = frozenset({"local", "qveris"})  #
 FALLBACK_CHAINS: dict[str, list[str]] = {
     "a_share":   ["tencent", "mootdx", "eastmoney", "baostock", "akshare", "tushare", "local"],
     "us_equity": ["yahoo", "stooq", "sina", "eastmoney", "yfinance", "tiingo", "fmp", "finnhub", "alphavantage", "longbridge", "akshare", "local"],
-    # HK: tencent leads (no observed IP ban); akshare (Eastmoney-backed)
-    # precedes the Yahoo-SDK family, which is blocked from mainland IPs;
-    # tushare hk_daily is key-gated.
-    "hk_equity": ["tencent", "eastmoney", "yahoo", "futu", "akshare", "yfinance", "tushare", "longbridge", "local"],
+    "hk_equity": ["eastmoney", "yahoo", "futu", "yfinance", "akshare", "longbridge", "local"],
     "india_equity": ["yahoo", "yfinance", "india_broker", "local"],
-    "kr_equity":   ["pykrx", "yahoo", "yfinance", "local"],
-    # TSX (.TO) / TSX Venture (.V): direct Yahoo first, SDK fallback second.
-    "ca_equity":   ["yahoo", "yfinance", "local"],
     # OKX first (native), then dedicated Binance, then generic CCXT / Yahoo.
     "crypto":    ["okx", "binance", "ccxt", "yfinance", "local"],
     "futures":   ["tushare", "akshare", "local"],

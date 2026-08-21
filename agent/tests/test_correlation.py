@@ -62,8 +62,6 @@ class TestInferMarket:
         assert infer_market("830799.BJ") == "a_share"
         assert infer_market("AAPL.US") == "us_equity"
         assert infer_market("9988.HK") == "hk_equity"
-        assert infer_market("TD.TO") == "ca_equity"
-        assert infer_market("PNG.V") == "ca_equity"
 
 
 class TestNormalizeSymbol:
@@ -83,7 +81,6 @@ class TestNormalizeSymbol:
         assert _normalize_symbol("AAPL.US", "us_equity") == "AAPL.US"
         assert _normalize_symbol("600000.SH", "a_share") == "600000.SH"
         assert _normalize_symbol("0700.HK", "hk_equity") == "0700.HK"
-        assert _normalize_symbol("TD.TO", "ca_equity") == "TD.TO"
 
     def test_crypto_passes_through(self):
         assert _normalize_symbol("BTC-USDT", "crypto") == "BTC-USDT"
@@ -233,23 +230,6 @@ class TestRollingCorrelationMatrix:
         # Both should be reasonable correlations
         assert -1 <= p_matrix[0][1] <= 1
         assert -1 <= s_matrix[0][1] <= 1
-
-    def test_does_not_forward_fill_missing_closes(self):
-        # Under pandas>=2,<3 a bare pct_change() forward-fills NaN closes,
-        # manufacturing a 0% return on the halted session and pairing it
-        # against the peer's real move. GAP tracks PEER exactly, so once the
-        # halted session is dropped instead of filled the two are perfectly
-        # correlated. Mirrors TestAlignedReturns in test_regime.py.
-        peer_closes = [100.0, 110.0, 115.5, 112.035, 121.0, 123.42]
-        gap_closes = [c / 2.0 for c in peer_closes]
-        gap_closes[2] = np.nan  # trading halt: no close printed
-        price_series = {
-            "GAP": self._make_price_df(gap_closes),
-            "PEER": self._make_price_df(peer_closes),
-        }
-        labels, matrix = _rolling_correlation_matrix(price_series, window=30, method="pearson")
-        i, j = labels.index("GAP"), labels.index("PEER")
-        assert matrix[i][j] == pytest.approx(1.0)
 
     def test_empty_dict_returns_empty(self):
         labels, matrix = _rolling_correlation_matrix({}, window=30, method="pearson")

@@ -81,8 +81,8 @@ def _build_response_from_run_dir(
         state_status = str(state_data.get("status") or "").lower()
         if state_status == "success":
             response.status = "success"
-        elif state_status in {"failed", "cancelled"}:
-            response.status = state_status
+        elif state_status == "failed":
+            response.status = "failed"
             response.reason = state_data.get("reason", "")
         else:
             response.status = state_status or "unknown"
@@ -153,13 +153,6 @@ def _build_response_from_run_dir(
             response.run_card = json.loads(run_card_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             pass
-
-    risk_xray = _load_json_file(run_dir / "artifacts" / "risk_xray.json")
-    if risk_xray is not None:
-        response.risk_xray = risk_xray
-    rebalance_notes = _load_json_file(run_dir / "artifacts" / "rebalance_notes.json")
-    if rebalance_notes is not None:
-        response.rebalance_notes = rebalance_notes
 
     llm_usage_path = run_dir / "llm_usage.json"
     if llm_usage_path.exists():

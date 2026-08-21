@@ -164,7 +164,7 @@ def _clamp_lookback(value: Any) -> int:
     """
     try:
         days = int(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError):
         return _DEFAULT_LOOKBACK_DAYS
     if days < 1:
         return 1
