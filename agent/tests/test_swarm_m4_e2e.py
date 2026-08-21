@@ -143,6 +143,9 @@ class _StubChatLLM:
     def chat(self, messages, tools=None, timeout=None):  # pragma: no cover — fallback path
         return self.stream_chat(messages, tools=tools)
 
+    def close(self) -> None:
+        """No-op: the stub owns no HTTP client."""
+
 
 def _stub_llm_factory(responses: list[LLMResponse]):
     """Build a callable that reads as ``ChatLLM(model_name=...)`` would.
@@ -480,6 +483,8 @@ def test_tool_call_events_carry_mcp_metadata_and_redact_sensitive_arguments(
     assert call_data["remote_tool"] == "search"
     assert result_data["server"] == "kb"
     assert result_data["remote_tool"] == "search"
+    assert call_data["call_id"] == "tc-1"
+    assert result_data["call_id"] == "tc-1"
     assert result_data["status"] == "ok"
 
     # R-10: redaction is applied to known sensitive keys.

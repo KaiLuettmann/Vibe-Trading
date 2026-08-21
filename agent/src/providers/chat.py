@@ -9,6 +9,7 @@ import html
 import logging
 import os
 import re
+import time as _time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
@@ -69,6 +70,15 @@ class ToolCallRequest:
     extra_content: Dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class LLMRuntimeSnapshot:
+    """Immutable identity of the model configuration used by one ChatLLM."""
+
+    provider: str
+    configured_model: str
+    reasoning_effort: str
+
+
 @dataclass
 class LLMResponse:
     """LLM response.
@@ -86,6 +96,9 @@ class LLMResponse:
         content_filter_triggered: ``True`` when the provider blocked the
             response via content moderation (e.g. DashScope/Qwen content
             moderation filter, ``finish_reason == "content_filter"``).
+        response_model: Model identifier reported by the provider response,
+            when available. This is authoritative runtime metadata and must
+            not be inferred from the model's natural-language self-report.
     """
 
     content: Optional[str] = None
@@ -94,6 +107,7 @@ class LLMResponse:
     finish_reason: str = "stop"
     usage_metadata: Optional[Dict[str, int]] = None
     content_filter_triggered: bool = False
+    response_model: Optional[str] = None
 
     @property
     def has_tool_calls(self) -> bool:
@@ -271,8 +285,38 @@ class ChatLLM:
         Args:
             model_name: Model name; defaults to the environment variable value.
         """
-        self.model_name = model_name
         self._llm = build_llm(model_name=model_name)
+        runtime_cfg = get_env_config().llm
+        configured_model = (
+            model_name or runtime_cfg.langchain_model_name
+        ).strip()
+        self.model_name = configured_model
+        self.runtime_snapshot = LLMRuntimeSnapshot(
+            provider=runtime_cfg.langchain_provider.strip().lower() or "openai",
+            configured_model=configured_model,
+            reasoning_effort=runtime_cfg.langchain_reasoning_effort.strip().lower(),
+        )
+
+    def close(self) -> None:
+        """Best-effort release of the underlying provider HTTP client.
+
+        The LangChain adapter (ChatOpenAI and its OpenAI-compatible
+        subclasses) owns a pooled ``httpx.Client`` that is not guaranteed to
+        be refcount-collected promptly — cyclic references can defer it to a
+        GC pass. Long-running callers (swarm workers build one ChatLLM per
+        task) must call this when the instance is done with, or sockets
+        accumulate in CLOSE-WAIT. Safe to call multiple times; providers
+        without a closeable client are a no-op.
+        """
+        llm = self._llm
+        for attr in ("root_client", "root_async_client", "client"):
+            client = getattr(llm, attr, None)
+            close_fn = getattr(client, "close", None)
+            if callable(close_fn):
+                try:
+                    close_fn()
+                except Exception:
+                    logger.debug("ChatLLM.close: failed to close %s", attr, exc_info=True)
 
     def chat(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None, timeout: Optional[int] = None) -> LLMResponse:
         """Call the LLM synchronously.
@@ -297,6 +341,7 @@ class ChatLLM:
         on_text_chunk: Optional[Any] = None,
         on_reasoning_chunk: Optional[Any] = None,
         timeout: Optional[int] = None,
+        idle_timeout_s: Optional[float] = None,
         should_cancel: Optional[Callable[[], bool]] = None,
     ) -> LLMResponse:
         """Stream the LLM and optionally forward text deltas (e.g. thinking).
@@ -311,6 +356,9 @@ class ChatLLM:
             on_text_chunk: Optional callback ``(delta: str) -> None``.
             on_reasoning_chunk: Optional callback ``(delta: str) -> None``.
             timeout: Optional per-call timeout in seconds.
+            idle_timeout_s: Optional per-chunk idle timeout; when no stream
+                delta arrives for this long the call fails as a retryable
+                timeout instead of hanging the loop silently.
             should_cancel: Optional predicate polled per chunk; when it returns
                 True the stream stops early and the partial response is returned.
                 Lets a caller abort a live stream promptly (cooperative cancel).
@@ -325,7 +373,17 @@ class ChatLLM:
             pending_text = ""
             possible_dsml_text = True
             cancelled = False
+            last_chunk_ts = _time.monotonic()
             for chunk in llm.stream(messages, config=config):
+                now = _time.monotonic()
+                if idle_timeout_s and now - last_chunk_ts > idle_timeout_s:
+                    # No delta for too long: the provider is stalled, not
+                    # thinking. Raising a bare TimeoutError lets the wrapper
+                    # below convert it into a retryable ProviderStreamError.
+                    raise TimeoutError(
+                        f"no stream delta for {idle_timeout_s:.0f}s"
+                    )
+                last_chunk_ts = now
                 if should_cancel and should_cancel():
                     cancelled = True
                     break
@@ -425,6 +483,10 @@ class ChatLLM:
             except (TypeError, ValueError):
                 usage = None
         additional_kwargs = getattr(ai_message, "additional_kwargs", {}) or {}
+        response_metadata = getattr(ai_message, "response_metadata", {}) or {}
+        response_model = response_metadata.get("model_name") or response_metadata.get("model")
+        if response_model is not None:
+            response_model = str(response_model).strip() or None
         thought_signatures_by_id, thought_signatures_by_index = (
             ChatLLM._tool_call_thought_signature_maps(ai_message)
         )
@@ -484,6 +546,7 @@ class ChatLLM:
             finish_reason=finish_reason,
             usage_metadata=usage,
             content_filter_triggered=content_filter_triggered,
+            response_model=response_model,
         )
 
 

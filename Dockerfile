@@ -1,8 +1,8 @@
 # ============================================================================
 # Stage 1: Build frontend
 # ============================================================================
-FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS frontend-build
-# node:20-slim digest resolved 2026-07-13
+FROM node:22-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS frontend-build
+# node:22-slim digest resolved 2026-07-28
 
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
@@ -37,11 +37,22 @@ COPY requirements-lock.txt requirements-lock.txt
 RUN sed '/^[[:space:]]*--hash=/d' requirements-lock.txt > requirements-install.txt \
     && pip install --no-cache-dir -r requirements-install.txt
 
+# Channel SDKs (feishu + telegram) come from their own hash-pinned lock, not
+# from `pip install -e ".[feishu,telegram]"`. An extras install resolves against
+# whatever PyPI serves at build time with no hashes, which would quietly opt the
+# image out of the contract the line above establishes. To change the channel
+# set, edit agent/requirements-channels.txt and regenerate the lock with the
+# command documented at the top of that file.
+COPY requirements-channels-lock.txt requirements-channels-lock.txt
+RUN pip install --no-cache-dir --require-hashes -r requirements-channels-lock.txt
+
 # Copy project + install the CLI entrypoint (editable — the runtime stage
 # re-creates the same /app/agent source tree the .pth file points at).
+# --no-deps because every dependency is already installed from the two locks
+# above; without it pip re-resolves and downloads unhashed wheels.
 COPY pyproject.toml LICENSE README.md ./
 COPY agent/ agent/
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir --no-deps -e .
 
 # ============================================================================
 # Stage 3: Runtime — carries the prebuilt venv only, no compilers/dev headers.
@@ -51,7 +62,7 @@ FROM python:3.11-slim@sha256:e031123e3d85762b141ad1cbc56452ba69c6e722ebf2f042cc0
 
 LABEL org.opencontainers.image.title="Vibe-Trading" \
     org.opencontainers.image.description="Natural-language finance research AI agent with backtesting" \
-    org.opencontainers.image.version="0.1.12" \
+    org.opencontainers.image.version="0.1.14" \
     org.opencontainers.image.source="https://github.com/HKUDS/Vibe-Trading" \
     org.opencontainers.image.licenses="MIT"
 
