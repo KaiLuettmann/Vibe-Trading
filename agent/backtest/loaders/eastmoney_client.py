@@ -42,9 +42,7 @@ _DEFAULT_MIN_INTERVAL = 1.0
 # Eastmoney kline period codes (``klt``) keyed by our interval labels.
 KLT_BY_INTERVAL: dict[str, int] = {
     "1D": 101,
-    "1d": 101,
     "1W": 102,
-    "1w": 102,
     "1M": 103,
     "1m": 1,
     "5m": 5,

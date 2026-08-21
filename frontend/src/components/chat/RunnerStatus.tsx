@@ -39,25 +39,25 @@ function formatUsd(value: number | undefined): string {
 }
 
 function formatRelative(value: string | number | null | undefined): string {
-  if (value == null || value === "") return i18n.t("runnerStatus.never");
+  if (value == null || value === "") return "never";
   const then = typeof value === "number"
     ? (value < 1_000_000_000_000 ? value * 1000 : value)
     : new Date(value).getTime();
-  if (!Number.isFinite(then)) return i18n.t("runnerStatus.unknown");
+  if (!Number.isFinite(then)) return "unknown";
   const deltaSec = Math.round((Date.now() - then) / 1000);
-  if (deltaSec < 0) return i18n.t("runnerStatus.justNow");
-  if (deltaSec < 60) return i18n.t("runnerStatus.secondsAgo", { n: deltaSec });
-  if (deltaSec < 3600) return i18n.t("runnerStatus.minutesAgo", { n: Math.floor(deltaSec / 60) });
-  if (deltaSec < 86_400) return i18n.t("runnerStatus.hoursAgo", { n: Math.floor(deltaSec / 3600) });
-  return i18n.t("runnerStatus.daysAgo", { n: Math.floor(deltaSec / 86_400) });
+  if (deltaSec < 0) return "just now";
+  if (deltaSec < 60) return `${deltaSec}s ago`;
+  if (deltaSec < 3600) return `${Math.floor(deltaSec / 60)}m ago`;
+  if (deltaSec < 86_400) return `${Math.floor(deltaSec / 3600)}h ago`;
+  return `${Math.floor(deltaSec / 86_400)}d ago`;
 }
 
 function formatCountdown(iso: string | undefined): { label: string; expired: boolean; soon: boolean } {
   if (!iso) return { label: "—", expired: false, soon: false };
   const target = new Date(iso).getTime();
-  if (!Number.isFinite(target)) return { label: i18n.t("runnerStatus.unknown"), expired: false, soon: false };
+  if (!Number.isFinite(target)) return { label: "unknown", expired: false, soon: false };
   const deltaSec = Math.round((target - Date.now()) / 1000);
-  if (deltaSec <= 0) return { label: i18n.t("runnerStatus.expired"), expired: true, soon: false };
+  if (deltaSec <= 0) return { label: "expired", expired: true, soon: false };
   const days = Math.floor(deltaSec / 86_400);
   const hours = Math.floor((deltaSec % 86_400) / 3600);
   const minutes = Math.floor((deltaSec % 3600) / 60);
@@ -77,7 +77,7 @@ function summarizeLimits(limits: LiveMandateLimits | undefined): string {
 }
 
 function fallbackAuthorizeInstruction(): string {
-  return i18n.t("runnerStatus.fallbackInstruction");
+  return "Run `vibe-trading connector list`, choose the broker profile, then run `vibe-trading connector authorize <profile>` from the desktop session that will hold the broker connection.";
 }
 
 function BrokerRow({
@@ -98,8 +98,8 @@ function BrokerRow({
   const mandate = broker.mandate ?? null;
   const countdown = formatCountdown(mandate?.expires_at);
   const authorizeInstruction = authorizeHint?.instruction
-    ?? (authorizeFailed ? fallbackAuthorizeInstruction() : i18n.t("runnerStatus.loadingInstructions"));
-  const authorizeNote = i18n.t("runnerStatus.authorizeNote");
+    ?? (authorizeFailed ? fallbackAuthorizeInstruction() : "Loading connector authorization instructions...");
+  const authorizeNote = "The connector channel stays read-only until OAuth succeeds and a mandate is committed.";
 
   useEffect(() => {
     let cancelled = false;
@@ -124,14 +124,14 @@ function BrokerRow({
     try {
       if (runnerAlive) {
         await api.stopLiveRunner(brokerKey);
-        toast.success(i18n.t("runnerStatus.runnerStoppedFor", { broker: brokerKey }));
+        toast.success(`Runner stopped for ${brokerKey}`);
       } else {
         await api.startLiveRunner(brokerKey);
-        toast.success(i18n.t("runnerStatus.runnerStartedFor", { broker: brokerKey }));
+        toast.success(`Runner started for ${brokerKey}`);
       }
       onRefresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : i18n.t("runnerStatus.runnerControlFailed"));
+      toast.error(error instanceof Error ? error.message : "Runner control failed.");
     } finally {
       setBusy(false);
     }
@@ -145,12 +145,12 @@ function BrokerRow({
           {authorized ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
               <ShieldCheck className="h-2.5 w-2.5" />
-              {i18n.t("runnerStatus.authorized")}
+              Authorized
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
               <CircleSlash className="h-2.5 w-2.5" />
-              {i18n.t("runnerStatus.notConnected")}
+              Not connected
             </span>
           )}
         </div>
@@ -163,7 +163,7 @@ function BrokerRow({
         <div className="grid gap-1.5 rounded-md border border-dashed border-primary/30 bg-primary/5 p-2">
           <div className="flex items-center gap-1.5 text-[11px] font-medium text-primary">
             <PlugZap className="h-3 w-3 shrink-0" />
-            {i18n.t("runnerStatus.connectProfile")}
+            Connect this profile to enable connector runtime
           </div>
           <p className="text-[10px] leading-relaxed text-muted-foreground">
             {authorizeInstruction}
@@ -180,16 +180,16 @@ function BrokerRow({
             <div className="rounded-md border bg-background/60 p-2">
               <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 <CircleDot className={["h-2.5 w-2.5", runnerAlive ? "text-emerald-500" : "text-muted-foreground"].join(" ")} />
-                {i18n.t("runnerStatus.runner")}
+                Runner
               </div>
               <div className={["mt-0.5 text-xs font-semibold", runnerAlive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"].join(" ")}>
-                {runnerAlive ? i18n.t("runnerStatus.runnerRunning") : i18n.t("runnerStatus.runnerStopped")}
+                {runnerAlive ? "Running" : "Stopped"}
               </div>
             </div>
             <div className="rounded-md border bg-background/60 p-2">
               <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 <Activity className="h-2.5 w-2.5" />
-                {i18n.t("runnerStatus.lastTick")}
+                Last tick
               </div>
               <div className="mt-0.5 text-xs font-medium text-foreground">
                 {formatRelative(broker.runner?.last_tick)}
@@ -202,7 +202,7 @@ function BrokerRow({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                   <ShieldCheck className="h-2.5 w-2.5" />
-                  {i18n.t("runnerStatus.activeMandate")}
+                  Active mandate
                 </div>
                 {mandate.expires_at && (
                   <span
@@ -214,20 +214,20 @@ function BrokerRow({
                           ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                           : "bg-muted text-muted-foreground",
                     ].join(" ")}
-                    title={i18n.t("runnerStatus.expiresAt", { time: new Date(mandate.expires_at).toLocaleString() })}
+                    title={`Expires ${new Date(mandate.expires_at).toLocaleString()}`}
                   >
                     <Clock className="h-2.5 w-2.5" />
-                    {countdown.expired ? i18n.t("runnerStatus.expired") : i18n.t("runnerStatus.expiresIn", { time: countdown.label })}
+                    {countdown.expired ? "expired" : `expires in ${countdown.label}`}
                   </span>
                 )}
               </div>
               <div className="mt-0.5 font-mono text-[11px] text-foreground">
-                {summarizeLimits(mandate.limits) || i18n.t("runnerStatus.limitsUnavailable")}
+                {summarizeLimits(mandate.limits) || "limits unavailable"}
               </div>
             </div>
           ) : (
             <div className="rounded-md border border-dashed bg-background/40 p-2 text-[10px] text-muted-foreground">
-              {i18n.t("runnerStatus.noActiveMandate")}
+              No active mandate. Ask the agent to propose one, then commit it before starting the connector runtime.
             </div>
           )}
 
@@ -235,11 +235,11 @@ function BrokerRow({
             {halted ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-medium text-destructive">
                 <OctagonX className="h-3 w-3" />
-                {i18n.t("runnerStatus.haltedControlsDisabled")}
+                Halted — runner controls disabled
               </span>
             ) : (
               <span className="text-[10px] text-muted-foreground">
-                {runnerAlive ? i18n.t("runnerStatus.runtimeActive") : i18n.t("runnerStatus.idle")}
+                {runnerAlive ? "Runtime active inside mandate" : "Idle"}
               </span>
             )}
             <button
@@ -252,10 +252,10 @@ function BrokerRow({
                   ? "border-destructive/40 text-destructive hover:bg-destructive/10"
                   : "border-primary/40 text-primary hover:bg-primary/10",
               ].join(" ")}
-              title={runnerAlive ? i18n.t("runnerStatus.stopRunnerTitle") : i18n.t("runnerStatus.startRunnerTitle")}
+              title={runnerAlive ? "Stop the persistent runner" : "Start the persistent runner"}
             >
               {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className="h-3 w-3" />}
-              {runnerAlive ? i18n.t("runnerStatus.stopRunner") : i18n.t("runnerStatus.startRunner")}
+              {runnerAlive ? "Stop runner" : "Start runner"}
             </button>
           </div>
         </>
@@ -283,18 +283,7 @@ export function isVisibleRuntimeConnector(broker: LiveBrokerStatus): boolean {
 
 export const RunnerStatus = memo(function RunnerStatus({ status, unavailable, halted, onRefresh }: Props) {
   const [open, setOpen] = useState(false);
-  const [, setVisibilityRefresh] = useState(0);
   const visibleBrokers = status?.brokers.filter(isVisibleRuntimeConnector) ?? [];
-
-  useEffect(() => {
-    const refreshOnTabRestore = () => {
-      if (document.visibilityState !== "visible") return;
-      setVisibilityRefresh(Date.now());
-      onRefresh();
-    };
-    document.addEventListener("visibilitychange", refreshOnTabRestore);
-    return () => document.removeEventListener("visibilitychange", refreshOnTabRestore);
-  }, [onRefresh]);
 
   if (unavailable) return null;
   if (!status || visibleBrokers.length === 0) return null;

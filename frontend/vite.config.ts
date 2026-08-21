@@ -15,7 +15,6 @@ const PROXY_PATHS = [
   "/live",
   "/upload",
   "/shadow-reports",
-  "/scheduled-runs",
 ];
 
 export default defineConfig(({ mode }) => {
@@ -54,7 +53,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            "vendor-react": ["react", "react-dom", "react-router"],
+            "vendor-react": ["react", "react-dom", "react-router-dom"],
             "vendor-charts": ["echarts"],
           },
         },

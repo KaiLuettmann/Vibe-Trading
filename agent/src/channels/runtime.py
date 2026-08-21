@@ -18,7 +18,6 @@ from src.channels.manager import ChannelManager
 from src.channels.pairing import PAIRING_COMMAND_META_KEY, handle_pairing_command
 from src.config.paths import get_data_dir
 from src.session.models import Message, Session
-from src.session.service import SessionBusyError
 
 logger = logging.getLogger(__name__)
 
@@ -136,11 +135,7 @@ class ChannelRuntime:
                                 "Not authorized: pairing management is restricted to "
                                 "configured operators."
                             ),
-                            metadata={
-                                PAIRING_COMMAND_META_KEY: True,
-                                "unauthorized": True,
-                                "message_id": msg.metadata.get("message_id"),
-                            },
+                            metadata={PAIRING_COMMAND_META_KEY: True, "unauthorized": True},
                         )
                     )
                     return
@@ -155,10 +150,7 @@ class ChannelRuntime:
                         channel=msg.channel,
                         chat_id=msg.chat_id,
                         content=reply,
-                        metadata={
-                            PAIRING_COMMAND_META_KEY: True,
-                            "message_id": msg.metadata.get("message_id"),
-                        },
+                        metadata={PAIRING_COMMAND_META_KEY: True},
                     )
                 )
                 return
@@ -174,11 +166,7 @@ class ChannelRuntime:
                         channel=msg.channel,
                         chat_id=msg.chat_id,
                         content=reply,
-                        metadata={
-                            "_channel_runtime": True,
-                            "session_reset": True,
-                            "message_id": msg.metadata.get("message_id"),
-                        },
+                        metadata={"_channel_runtime": True, "session_reset": True},
                     )
                 )
                 return
@@ -200,35 +188,11 @@ class ChannelRuntime:
                         "_channel_runtime": True,
                         "attempt_id": attempt_id,
                         "session_id": session_id,
-                        # QQ (and other platforms) need the originating message id
-                        # to reply as a passive message; without it, replies are
-                        # treated as active messages and rejected for
-                        # non-privileged bots.
-                        "message_id": msg.metadata.get("message_id"),
                     },
                 )
             )
         except asyncio.CancelledError:
             raise
-        except SessionBusyError:
-            # A chat maps to one persistent session, so a second message sent
-            # while the first is still running is ordinary user behaviour, not
-            # a fault. Say so plainly instead of surfacing an exception name.
-            await self.bus.publish_outbound(
-                OutboundMessage(
-                    channel=msg.channel,
-                    chat_id=msg.chat_id,
-                    content=(
-                        "Still working on your previous message — send this again "
-                        "once I reply, or use the reset command to start over."
-                    ),
-                    metadata={
-                        "_channel_runtime": True,
-                        "busy": True,
-                        "message_id": msg.metadata.get("message_id"),
-                    },
-                )
-            )
         except Exception as exc:  # noqa: BLE001 - channel errors must surface to users
             logger.exception("Channel runtime failed for %s:%s", msg.channel, msg.chat_id)
             await self.bus.publish_outbound(
@@ -236,11 +200,7 @@ class ChannelRuntime:
                     channel=msg.channel,
                     chat_id=msg.chat_id,
                     content=f"Channel runtime error: {type(exc).__name__}: {exc}",
-                    metadata={
-                        "_channel_runtime": True,
-                        "error": True,
-                        "message_id": msg.metadata.get("message_id"),
-                    },
+                    metadata={"_channel_runtime": True, "error": True},
                 )
             )
 

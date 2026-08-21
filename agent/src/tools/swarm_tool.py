@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import time
+from pathlib import Path
 from typing import Any
 
 from src.agent.tools import BaseTool
@@ -756,9 +757,9 @@ class SwarmTool(BaseTool):
 
         from src.config import load_swarm_agent_config
         from src.swarm.runtime import SwarmRuntime
-        from src.swarm.store import SwarmStore, swarm_runs_root
+        from src.swarm.store import SwarmStore
 
-        swarm_base_dir = swarm_runs_root()
+        swarm_base_dir = Path(__file__).resolve().parents[2] / ".swarm" / "runs"
         swarm_base_dir.mkdir(parents=True, exist_ok=True)
         store = SwarmStore(base_dir=swarm_base_dir)
         # Boot-time / operator-trusted: even when reached via the in-process

@@ -18,12 +18,6 @@ describe("apiAuth", () => {
       localStorage.setItem("vibe_trading_api_auth_key", "my-secret");
       expect(getApiAuthKey()).toBe("my-secret");
     });
-    it("returns empty string when storage access is blocked", () => {
-      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-        throw new DOMException("blocked", "SecurityError");
-      });
-      expect(getApiAuthKey()).toBe("");
-    });
   });
 
   describe("setApiAuthKey", () => {
@@ -40,12 +34,6 @@ describe("apiAuth", () => {
       setApiAuthKey("abc");
       setApiAuthKey("");
       expect(localStorage.getItem("vibe_trading_api_auth_key")).toBeNull();
-    });
-    it("does not throw when storage writes are blocked", () => {
-      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-        throw new DOMException("blocked", "SecurityError");
-      });
-      expect(() => setApiAuthKey("abc")).not.toThrow();
     });
   });
 

@@ -12,7 +12,6 @@ from typing import Any, Optional
 import pandas as pd
 
 from backtest.loaders.yfinance_loader import DataLoader as YfinanceLoader
-from backtest.metrics import bar_returns, buy_and_hold_return
 
 
 # -------------------------------------------------------------------
@@ -22,7 +21,6 @@ from backtest.metrics import bar_returns, buy_and_hold_return
 MARKET_BENCHMARKS: dict[str, Optional[str]] = {
     "us_equity":  "SPY",
     "hk_equity":  "HK.03100",   # Hang Seng China Enterprises ETF
-    "ca_equity":  "XIC.TO",     # S&P/TSX Capped Composite ETF
     "a_share":    "000300.SH",  # CSI 300 (China A-share core index)
     "crypto":     "BTC-USDT",
     "futures":    "ES.CME",      # E-mini S&P 500 futures
@@ -91,15 +89,10 @@ def resolve_benchmark(
     if len(close) < 2:
         return None
 
-    ret_series = bar_returns(close, label=f"benchmark {ticker}")
-    # Price relative, not the compounded product: identical while prices are
-    # positive, and it is the only one of the two that stays honest once they
-    # are not (#872).
-    total = buy_and_hold_return(close)
-    if total is None:
-        return None
+    ret_series = close.pct_change().fillna(0.0)
+    total_ret   = float((1 + ret_series).prod() - 1)
 
-    return BenchmarkResult(ticker=ticker, ret_series=ret_series, total_ret=total)
+    return BenchmarkResult(ticker=ticker, ret_series=ret_series, total_ret=total_ret)
 
 
 # -------------------------------------------------------------------
@@ -121,8 +114,8 @@ def _resolve_ticker(
     ticker = MARKET_BENCHMARKS.get(market)
 
     # yfinance is the universal fallback for benchmark fetch
-    # but it only works for global-equity market types
-    if ticker and market not in {"us_equity", "hk_equity", "ca_equity"}:
+    # but it only works for us_equity / hk_equity market types
+    if ticker and market not in {"us_equity", "hk_equity"}:
         # Only use benchmark if we can actually fetch it
         pass
 
@@ -136,19 +129,12 @@ def _infer_market(codes: list[str], source: str) -> str:
 
     first = codes[0].upper()
 
+    if source in ("okx", "ccxt") or "-" in first or "/" in first:
+        return "crypto"
     if first.endswith(".US"):
         return "us_equity"
     if first.endswith(".HK"):
         return "hk_equity"
-    if first.endswith((".TO", ".V")):
-        return "ca_equity"
-    if first.endswith((".NS", ".BO")):
-        return "india_equity"
-    if first.endswith((".KS", ".KQ")):
-        return "kr_equity"
-    crypto_quotes = ("-USDT", "-USDC", "-USD", "-BTC", "-ETH")
-    if source in ("okx", "ccxt", "binance") or "/" in first or first.endswith(crypto_quotes):
-        return "crypto"
     if source in ("tushare", "akshare"):
         if first.isdigit() and len(first) == 6:
             return "a_share"

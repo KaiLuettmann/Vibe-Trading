@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import i18n from "../../../i18n";
 import { MetricsCard } from "../MetricsCard";
 
 describe("MetricsCard", () => {
@@ -12,22 +11,6 @@ describe("MetricsCard", () => {
     trade_count: 42,
   };
 
-  beforeAll(() => {
-    i18n.addResourceBundle(
-      "en",
-      "translation",
-      {
-        metrics: {
-          gloss: {
-            sharpe: "Return earned per unit of total risk.",
-          },
-        },
-      },
-      true,
-      true,
-    );
-  });
-
   it("renders nothing when metrics is empty", () => {
     const { container } = render(<MetricsCard metrics={{}} />);
     expect(container.innerHTML).toBe("");
@@ -39,15 +22,6 @@ describe("MetricsCard", () => {
     expect(screen.getByText("Sharpe")).toBeInTheDocument();
     expect(screen.getByText("Max DD")).toBeInTheDocument();
     expect(screen.getByText("Trades")).toBeInTheDocument();
-  });
-
-  it("adds a localized plain-language tooltip to each metric cell", () => {
-    render(<MetricsCard metrics={{ sharpe: 1.5 }} />);
-
-    expect(screen.getByText("Sharpe").parentElement).toHaveAttribute(
-      "title",
-      "Return earned per unit of total risk.",
-    );
   });
 
   it("renders formatted metric values", () => {

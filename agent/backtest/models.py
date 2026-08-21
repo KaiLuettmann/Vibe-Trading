@@ -1,6 +1,6 @@
 """Shared data models for backtest engines.
 
-Immutable dataclasses for positions, fills, trades, and equity snapshots.
+Immutable dataclasses for positions, trades, and equity snapshots.
 """
 
 from __future__ import annotations
@@ -36,30 +36,6 @@ class Position:
 
 
 @dataclass(frozen=True)
-class FillRecord:
-    """Immutable evidence for one executed position delta.
-
-    ``margin`` is the margin-equivalent traded value at the execution price;
-    it is evidence for turnover, not a second source of account state.
-    ``holding_bars`` is populated only for reducing fills and is derived from
-    prior fill evidence under the engine's proportional compressed-position
-    accounting.
-    """
-
-    symbol: str
-    timestamp: pd.Timestamp
-    bar_idx: int
-    action: str
-    signed_quantity: float
-    notional: float
-    execution_price: float
-    fee: float
-    margin: float
-    reason: str
-    holding_bars: float | None = None
-
-
-@dataclass(frozen=True)
 class TradeRecord:
     """A completed round-trip trade.
 
@@ -92,7 +68,7 @@ class TradeRecord:
     pnl: float
     pnl_pct: float
     exit_reason: str
-    holding_bars: float
+    holding_bars: int
     commission: float
     entry_margin: float = 0.0
     exit_margin: float = 0.0

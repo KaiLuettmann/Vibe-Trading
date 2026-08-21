@@ -5,13 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any, Dict
 
-# Opening ---, optional meta lines, closing ---. The closing fence may be at
-# EOF (no trailing newline) or followed by a body; empty meta (---\n---) is ok.
-_FRONTMATTER_RE = re.compile(
-    r"^---[ \t]*\r?\n(?:(.*?)\r?\n)?---[ \t]*(?:\r?\n(.*))?$",
-    re.DOTALL,
-)
-
 
 def parse_frontmatter(text: str) -> tuple[Dict[str, Any], str]:
     """Parse YAML-like frontmatter and body from a markdown file.
@@ -24,12 +17,12 @@ def parse_frontmatter(text: str) -> tuple[Dict[str, Any], str]:
     Returns:
         Tuple of (metadata dict, body text).
     """
-    match = _FRONTMATTER_RE.match(text)
+    match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)", text, re.DOTALL)
     if not match:
         return {}, text.strip()
 
     meta: Dict[str, Any] = {}
-    for line in (match.group(1) or "").strip().split("\n"):
+    for line in match.group(1).strip().split("\n"):
         line = line.strip()
         if ":" not in line:
             continue
@@ -44,5 +37,4 @@ def parse_frontmatter(text: str) -> tuple[Dict[str, Any], str]:
         else:
             meta[key] = value
 
-    body = match.group(2) or ""
-    return meta, body.strip()
+    return meta, match.group(2).strip()

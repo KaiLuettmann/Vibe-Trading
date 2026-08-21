@@ -28,14 +28,12 @@ describe("Streaming DOM stability", () => {
     // Transition 1: streaming starts, no content yet (placeholder)
     act(() => {
       store.setSessionId("test-session");
-      store.startActivity("attempt-1");
       store.setStatus("streaming");
     });
 
     let state = useAgentStore.getState();
     expect(state.status).toBe("streaming");
     expect(state.streamingText).toBe("");
-    expect(state.activity?.state).toBe("thinking");
 
     // Transition 2: reasoning starts
     act(() => {
@@ -68,11 +66,6 @@ describe("Streaming DOM stability", () => {
 
     state = useAgentStore.getState();
     expect(state.toolCalls).toHaveLength(1);
-    expect(state.activity).toMatchObject({
-      state: "working",
-      verb: "runningBacktest",
-      steps: [{ id: "tc-1" }],
-    });
 
     // Transition 5: tool completes
     act(() => {
@@ -105,7 +98,6 @@ describe("Streaming DOM stability", () => {
 
     act(() => {
       store.setSessionId("test-session");
-      store.startActivity("attempt-rapid");
       store.setStatus("streaming");
     });
 
@@ -126,7 +118,6 @@ describe("Streaming DOM stability", () => {
 
     act(() => {
       store.setSessionId("test-session");
-      store.startActivity("attempt-reset");
       store.setStatus("streaming");
       store.appendDelta("partial content");
     });
@@ -146,7 +137,6 @@ describe("Streaming DOM stability", () => {
 
     act(() => {
       store.setSessionId("test-session");
-      store.startActivity("attempt-tools");
       store.setStatus("streaming");
     });
 
@@ -165,6 +155,5 @@ describe("Streaming DOM stability", () => {
     expect(state.streamingText).toBe("Analyzing data... Done.");
     expect(state.toolCalls).toHaveLength(2);
     expect(state.toolCalls.every((tc) => tc.status === "ok")).toBe(true);
-    expect(state.activity?.steps.every((step) => step.status === "ok")).toBe(true);
   });
 });

@@ -36,15 +36,6 @@ _INTERVAL_MAP = {
     "1D": "1d",
     "1H": "1h",
     "4H": "1h",
-    "4h": "1h",  # yfinance has no 4h; match project ``4H`` → ``1h``
-    "1W": "1wk",
-    "1w": "1wk",
-    "1M": "1mo",
-    # Minute tokens stay lowercase; do not fold ``1M`` (month) via ``.lower()``.
-    "1m": "1m",
-    "5m": "5m",
-    "15m": "15m",
-    "30m": "30m",
 }
 
 
@@ -52,8 +43,7 @@ def _to_yfinance_symbol(code: str) -> str:
     """Convert project symbols into yfinance symbols.
 
     Args:
-        code: Project symbol, for example ``AAPL.US``, ``700.HK``, or
-            ``TD.TO``.
+        code: Project symbol, for example ``AAPL.US`` or ``700.HK``.
 
     Returns:
         yfinance-compatible symbol.
@@ -70,9 +60,7 @@ def _to_yfinance_symbol(code: str) -> str:
         return upper[:-5] + "-USD"
     if upper.endswith("-USDC"):
         return upper[:-5] + "-USD"
-    # India NSE/BSE (RELIANCE.NS, 500325.BO), Korea KRX (005930.KS,
-    # 247540.KQ), and Canada TSX/TSXV (TD.TO, PNG.V): yfinance carries these
-    # suffixes as-is.
+    # India NSE/BSE (RELIANCE.NS, 500325.BO): yfinance carries the suffix as-is.
     return upper
 
 
@@ -205,12 +193,7 @@ def _normalize_frame(frame: pd.DataFrame, requested_interval: str) -> pd.DataFra
     normalized = normalized.dropna(subset=["open", "high", "low", "close"])
     normalized = validate_ohlc(normalized)
 
-    # ``requested_interval`` reaches here with whatever case the caller used
-    # (``_INTERVAL_MAP`` accepts both ``4H`` and ``4h``). A case-sensitive
-    # check here let lowercase ``4h`` fetch hourly data via
-    # ``_to_yfinance_interval`` but skip this resample, silently returning
-    # native 1h bars mislabeled as 4H.
-    if str(requested_interval).strip().upper() == "4H" and not normalized.empty:
+    if requested_interval == "4H" and not normalized.empty:
         normalized = normalized.resample("4h").agg(
             {
                 "open": "first",
@@ -228,12 +211,10 @@ def _normalize_frame(frame: pd.DataFrame, requested_interval: str) -> pd.DataFra
 
 @register
 class DataLoader:
-    """Fetch global-equity and crypto bars from Yahoo Finance via yfinance."""
+    """Fetch HK/US equity bars from Yahoo Finance via yfinance."""
 
     name = "yfinance"
-    markets = {
-        "us_equity", "hk_equity", "india_equity", "kr_equity", "ca_equity", "crypto",
-    }
+    markets = {"us_equity", "hk_equity", "india_equity", "crypto"}
     requires_auth = False
 
     def is_available(self) -> bool:
@@ -259,8 +240,7 @@ class DataLoader:
         """Fetch OHLCV history keyed by the original project symbols.
 
         Args:
-            codes: Project symbols such as ``AAPL.US``, ``700.HK``, and
-                ``TD.TO``.
+            codes: Project symbols such as ``AAPL.US`` and ``700.HK``.
             start_date: Start date in ``YYYY-MM-DD`` format.
             end_date: End date in ``YYYY-MM-DD`` format.
             fields: Ignored for yfinance; included for interface compatibility.

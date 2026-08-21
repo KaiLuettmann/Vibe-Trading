@@ -1,183 +1,118 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ThinkingTimeline } from "../ThinkingTimeline";
-import type { AgentActivity, StoredAgentMessage } from "@/stores/agent";
+import type { AgentMessage } from "@/types/agent";
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string, values?: Record<string, string | number>) => {
-      const labels: Record<string, string> = {
-        "agent.activity.verbs.working": "Working",
-        "agent.activity.verbs.readingMarketData": "Reading the market data",
-        "agent.activity.verbs.writingStrategy": "Writing the strategy",
-        "agent.activity.verbs.runningBacktest": "Running the backtest",
-        "agent.activity.verbs.validatingNumbers": "Double-checking the numbers",
-        "agent.activity.done": "Done",
-        "agent.activity.failed": "Failed",
-        "agent.activity.stopped": "Stopped by you",
-      };
-      if (key === "agent.activity.steps") return `${values?.count} steps`;
-      if (key === "agent.activity.timeout") return `Stopped waiting after ${values?.elapsed}`;
-      if (key === "toolProgress.step") return `Step ${values?.step} · ${values?.tool}`;
-      return labels[key] ?? key;
-    },
-  }),
-}));
-
-function makeMsg(overrides: Partial<StoredAgentMessage> = {}): StoredAgentMessage {
+function makeMsg(overrides: Partial<AgentMessage> = {}): AgentMessage {
   return {
     id: "msg-1",
     type: "tool_call",
     content: "",
     tool: "bash",
     status: "running",
-    timestamp: 1000,
+    timestamp: Date.now(),
     ...overrides,
   };
 }
 
-function activityMessage(activity: AgentActivity): StoredAgentMessage {
-  return makeMsg({
-    id: `activity-${activity.attemptId}`,
-    type: "thinking",
-    meta: { activity },
-    timestamp: activity.startedAt,
-  });
-}
-
 describe("ThinkingTimeline", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
-
-  it("rebuilds a legacy completed group through ActivityLine", () => {
-    render(<ThinkingTimeline messages={[
-      makeMsg({ type: "tool_call", tool: "backtest", status: "ok" }),
+  it("shows summary text when done", () => {
+    const msgs: AgentMessage[] = [
+      makeMsg({ type: "tool_call", tool: "run_backtest", status: "ok" }),
       makeMsg({
-        id: "result",
         type: "tool_result",
-        tool: "backtest",
+        tool: "run_backtest",
         status: "ok",
         elapsed_ms: 3200,
         content: "done",
       }),
-    ]} />);
+    ];
 
-    expect(screen.getByText(/Done · 1 steps · 3s/)).toBeInTheDocument();
+    render(<ThinkingTimeline messages={msgs} />);
+    expect(screen.getByText(/Done · 1 steps/)).toBeInTheDocument();
+    expect(screen.getByText(/3\.2s/)).toBeInTheDocument();
   });
 
-  it("shows the latest legacy group as active", () => {
-    vi.spyOn(Date, "now").mockReturnValue(2000);
-    render(<ThinkingTimeline messages={[
-      makeMsg({ tool: "backtest", status: "running" }),
-    ]} isLatest />);
+  it("shows running state with spinner", () => {
+    const msgs: AgentMessage[] = [
+      makeMsg({ type: "tool_call", tool: "run_backtest", status: "running" }),
+    ];
 
-    expect(screen.getByText(/Running the backtest · Run the backtest/)).toBeInTheDocument();
+    render(<ThinkingTimeline messages={msgs} isLatest />);
+    expect(screen.getByText(/Running Run backtest/)).toBeInTheDocument();
   });
 
-  it("auto-collapses a completed activity after 900ms", () => {
-    vi.useFakeTimers();
-    render(<ThinkingTimeline messages={[
-      activityMessage({
-        attemptId: "done-1",
-        state: "done",
-        verb: "working",
-        steps: [{
-          id: "tool-1",
-          tool: "bash",
-          arguments: {},
-          status: "ok",
-          timestamp: 1000,
-        }],
-        startedAt: 1000,
-        endedAt: 2000,
-      }),
-    ]} />);
-
-    const disclosure = screen.getByRole("button");
-    expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    act(() => vi.advanceTimersByTime(900));
-    expect(disclosure).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("expands a historical activity on demand", () => {
-    vi.useFakeTimers();
-    render(<ThinkingTimeline messages={[
+  it("expands and collapses on click", async () => {
+    const user = userEvent.setup();
+    const msgs: AgentMessage[] = [
       makeMsg({ type: "tool_call", tool: "bash", status: "ok" }),
-      makeMsg({ id: "result", type: "tool_result", tool: "bash", status: "ok", elapsed_ms: 100 }),
-    ]} />);
-    act(() => vi.advanceTimersByTime(900));
+      makeMsg({ type: "tool_result", tool: "bash", status: "ok", elapsed_ms: 100, content: "output" }),
+    ];
 
-    const disclosure = screen.getByRole("button");
-    fireEvent.click(disclosure);
-    expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText(/Run command/)).toBeVisible();
+    render(<ThinkingTimeline messages={msgs} />);
+
+    // Initially collapsed
+    expect(screen.queryByText("Run command")).not.toBeInTheDocument();
+
+    // Click to expand
+    await user.click(screen.getByRole("button"));
+
+    // Now expanded — should show step labels
+    expect(screen.getByText("Run command")).toBeInTheDocument();
   });
 
-  it("renders the durable failed state instead of inferring from row icons", () => {
-    render(<ThinkingTimeline messages={[
-      activityMessage({
-        attemptId: "failed-1",
-        state: "failed",
-        verb: "readingMarketData",
-        steps: [],
-        startedAt: 1000,
-        endedAt: 2500,
-      }),
-    ]} />);
+  it("shows error icon when a step failed", () => {
+    const msgs: AgentMessage[] = [
+      makeMsg({ type: "tool_call", tool: "bash", status: "ok" }),
+      makeMsg({ type: "tool_result", tool: "bash", status: "error", content: "err" }),
+    ];
 
-    expect(screen.getByText("Failed · 0 steps · 1s")).toBeInTheDocument();
+    render(<ThinkingTimeline messages={msgs} isLatest />);
+    // Error state should be visible in summary
+    expect(screen.getByText(/Done · 1 steps/)).toBeInTheDocument();
   });
 
-  it("keeps zero-tool turns as an activity row", () => {
-    render(<ThinkingTimeline messages={[
-      activityMessage({
-        attemptId: "empty-1",
-        state: "done",
-        verb: "working",
-        steps: [],
-        startedAt: 1000,
-        endedAt: 1000,
-      }),
-    ]} />);
+  it("shows thinking content when expanded with no tools", async () => {
+    const user = userEvent.setup();
+    const msgs: AgentMessage[] = [
+      makeMsg({ type: "thinking", content: "Let me analyze this strategy carefully." }),
+    ];
 
-    expect(screen.getByText("Done · 0 steps · 0s")).toBeInTheDocument();
+    render(<ThinkingTimeline messages={msgs} />);
+
+    await user.click(screen.getByRole("button"));
+    expect(screen.getByText("Let me analyze this strategy carefully.")).toBeInTheDocument();
   });
 
-  it("delegates Continue for stopped turns", () => {
-    const onContinue = vi.fn();
-    const stopped: AgentActivity = {
-      attemptId: "stopped-1",
-      state: "stopped",
-      verb: "working",
-      steps: [],
-      startedAt: 1000,
-      endedAt: 4000,
-    };
-    render(
-      <ThinkingTimeline
-        messages={[activityMessage(stopped)]}
-        onContinue={onContinue}
-      />,
-    );
+  it("starts expanded when isLatest is true", () => {
+    const msgs: AgentMessage[] = [
+      makeMsg({ type: "tool_call", tool: "write_file", status: "ok" }),
+      makeMsg({ type: "tool_result", tool: "write_file", status: "ok", content: "ok" }),
+    ];
 
-    fireEvent.click(screen.getByRole("button", { name: "agent.activity.continue" }));
-    expect(onContinue).toHaveBeenCalledWith(stopped);
+    render(<ThinkingTimeline messages={msgs} isLatest />);
+    // Should be expanded immediately — "Generate code" label visible
+    expect(screen.getByText("Generate code")).toBeInTheDocument();
   });
 
-  it("exposes polite, non-atomic status semantics", () => {
-    render(<ThinkingTimeline messages={[
-      activityMessage({
-        attemptId: "done-a11y",
-        state: "done",
-        verb: "working",
-        steps: [],
-        startedAt: 1000,
-        endedAt: 1000,
-      }),
-    ]} />);
+  it("handles multiple tool steps", async () => {
+    const user = userEvent.setup();
+    const msgs: AgentMessage[] = [
+      makeMsg({ type: "tool_call", tool: "bash", status: "ok" }),
+      makeMsg({ type: "tool_result", tool: "bash", status: "ok", elapsed_ms: 500, content: "ok" }),
+      makeMsg({ type: "tool_call", tool: "write_file", status: "ok" }),
+      makeMsg({ type: "tool_result", tool: "write_file", status: "ok", elapsed_ms: 200, content: "ok" }),
+      makeMsg({ type: "tool_call", tool: "run_backtest", status: "ok" }),
+      makeMsg({ type: "tool_result", tool: "run_backtest", status: "ok", elapsed_ms: 5000, content: "ok" }),
+    ];
 
-    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
-    expect(screen.getByRole("status")).toHaveAttribute("aria-atomic", "false");
+    render(<ThinkingTimeline messages={msgs} />);
+    expect(screen.getByText(/Done · 3 steps/)).toBeInTheDocument();
+    expect(screen.getByText(/5\.7s/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button"));
+    expect(screen.getByText("Run command")).toBeInTheDocument();
+    expect(screen.getByText("Generate code")).toBeInTheDocument();
+    expect(screen.getByText("Run backtest")).toBeInTheDocument();
   });
 });

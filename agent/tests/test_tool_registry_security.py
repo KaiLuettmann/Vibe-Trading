@@ -14,7 +14,6 @@ def test_shell_tools_absent_from_default_registry(monkeypatch: pytest.MonkeyPatc
 
     assert "bash" not in registry.tool_names
     assert "background_run" not in registry.tool_names
-    assert "cancel_background" not in registry.tool_names
 
 
 def test_shell_tools_require_registry_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -24,4 +23,3 @@ def test_shell_tools_require_registry_opt_in(monkeypatch: pytest.MonkeyPatch) ->
 
     assert "bash" in registry.tool_names
     assert "background_run" in registry.tool_names
-    assert "cancel_background" in registry.tool_names

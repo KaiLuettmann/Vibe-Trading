@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from src.config.paths import get_runtime_root
-from src.scheduled_research.models import ScheduledResearchJob, validate_schedule, validate_timezone_shape
+from src.scheduled_research.models import ScheduledResearchJob, validate_schedule
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +73,7 @@ class ScheduledResearchJobStore:
 
         Args:
             path: Explicit path. Defaults to
-                ``<runtime root>/scheduled_research/scheduled_research_jobs.json``
-                (see :func:`_default_store_path`).
+                ``agent/data/scheduled_research_jobs.json``.
         """
         self.path: Path = path if path is not None else _default_store_path()
 
@@ -135,32 +134,19 @@ class ScheduledResearchJobStore:
         os.replace(tmp, target)
         self._fsync_dir(target.parent)
 
-    def upsert(self, job: ScheduledResearchJob, *, validate: bool = True) -> None:
+    def upsert(self, job: ScheduledResearchJob) -> None:
         """Insert or replace a job by id.
 
-        Validates the schedule string and the timezone's shape before
-        persisting. The timezone key is deliberately not resolved here — see
-        :func:`~src.scheduled_research.models.validate_timezone_shape` — so
-        executor lifecycle writes keep working on a host whose timezone
-        database lacks a key that validated where the job was created.
+        Validates the schedule string before persisting.
 
         Args:
             job: The job to store.
-            validate: When ``False``, skip schedule/timezone validation. Set by
-                the executor when recording lifecycle state (RUNNING, FAILED,
-                a retry time) for a job that is *already* persisted: such a
-                write must always land, otherwise a record whose schedule no
-                longer validates could never be marked failed and would retry
-                every tick forever. Creation paths keep the default.
 
         Raises:
-            ValueError: When ``job.schedule`` or ``job.timezone`` is malformed
-                and *validate* is true.
+            ValueError: When ``job.schedule`` is malformed.
             CorruptStoreError: When the existing store cannot be parsed.
         """
-        if validate:
-            validate_schedule(job.schedule)
-            validate_timezone_shape(job.timezone)
+        validate_schedule(job.schedule)
         jobs = self.load()
         jobs[job.id] = job
         self.save(jobs)
