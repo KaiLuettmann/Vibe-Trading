@@ -4613,6 +4613,7 @@ zstandard==0.25.0 \
     --hash=sha256:ffef5a74088f1e09947aecf91011136665152e0b4b359c42be3373897fb39b01
     # via langsmith
 zlib-ng==1.0.0 \
+    --hash=sha256:173de364f5b35a3dc75dc92eacd208cbc7a221faac9358fc389d9bc9d7a8f265 \
     --hash=sha256:64361ccfce156f7450315c6387ca7cf8c1ace656d4ae6ed765ebf7f279052360
     # via aiohttp
 
