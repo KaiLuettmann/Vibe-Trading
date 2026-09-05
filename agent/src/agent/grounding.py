@@ -337,7 +337,10 @@ _ANALYSIS_KIND_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"(?:夏普|sharpe)", re.IGNORECASE), "sharpe"),
     (re.compile(r"(?:胜率|命中率|win\s*rate|hit\s*rate)", re.IGNORECASE), "win_rate"),
     (re.compile(r"(?:概率|probability|prob)", re.IGNORECASE), "probability"),
-    (re.compile(r"(?:收益|回报|收益率|回报率|\breturns?\b)", re.IGNORECASE), "return"),
+    # 年化/annualized alone ("| 年化 | 18.2% |") resolves to return so a
+    # generic-header table cannot dodge the gate with the fragment the prose
+    # detector (_ANALYSIS_METRIC_RE) already treats as a metric word.
+    (re.compile(r"(?:收益|回报|收益率|回报率|年化|\breturns?\b|\bannualized\b)", re.IGNORECASE), "return"),
 )
 
 # Definitional prose ("夏普比率大于 1.0 通常被认为较好") states a convention,
@@ -2697,43 +2700,56 @@ class GroundingLedger:
                 (cell, _metric_kind_for_text(cell), bool(_FORECAST_FRAME_RE.search(cell)))
                 for cell in header
             ]
-            if not any(kind for _, kind, _ in columns):
-                continue
+            has_kind_header = any(kind for _, kind, _ in columns)
             for row in rows:
                 cells = row + [""] * (len(columns) - len(row))
+                if not has_kind_header:
+                    # Generic header ("指标 | 数值", "Metric | Value"): a cell
+                    # naming a metric kind is a row LABEL and claims exactly
+                    # one adjacent value cell (right first — "label, value"
+                    # order — then left, for value-first layouts). Validating
+                    # every cell after the label would grab annotation columns
+                    # ("备注 | 较去年提升 2%") that prose never attributes to
+                    # the label; parity with the prose verdict is the bar.
+                    row_kinds = [
+                        (index, _metric_kind_for_text(cell))
+                        for index, cell in enumerate(cells)
+                        if _metric_kind_for_text(cell) is not None
+                    ]
+                    claimed: set[int] = set()
+                    for label_index, row_kind in row_kinds:
+                        # A label cell that smuggles its own measurement
+                        # ("| 年化收益率 18.2% | - |") is prose-identical to
+                        # "年化收益率为 18.2%" — validate the label's own
+                        # numbers against its kind too.
+                        self._check_table_cell(
+                            cells[label_index], row_kind, cells[label_index], issues
+                        )
+                        # A forecast frame in the LABEL ("| 预计夏普比率 | 1.2 |")
+                        # frames the claimed value clause-wide, exactly as prose
+                        # exempts the whole clause and the metric-header path
+                        # skips a forecast-framed column. Without this the generic
+                        # path is stricter than both of its siblings.
+                        label_is_forecast = bool(
+                            _FORECAST_FRAME_RE.search(cells[label_index])
+                        )
+                        for value_index in (label_index + 1, label_index - 1):
+                            if (
+                                0 <= value_index < len(cells)
+                                and value_index not in claimed
+                                and _metric_kind_for_text(cells[value_index]) is None
+                            ):
+                                claimed.add(value_index)
+                                if label_is_forecast:
+                                    continue
+                                self._check_table_cell(
+                                    cells[label_index], row_kind, cells[value_index], issues
+                                )
+                    continue
                 for (cell_text, kind, header_forecast), cell in zip(columns, cells):
                     if kind is None or header_forecast:
                         continue
-                    values = self._measure_numbers(cell)
-                    if not values:
-                        continue
-                    # A forecast annotation inside the cell ("预计 12.4%")
-                    # exempts only that cell, never its neighbours.
-                    if _FORECAST_FRAME_RE.search(cell) or _DEFINITION_FRAME_RE.search(
-                        cell
-                    ):
-                        continue
-                    unsupported = [
-                        value
-                        for value in values
-                        if not self._analysis_value_observed(value, kind)
-                    ]
-                    if not unsupported:
-                        continue
-                    issues.append(
-                        {
-                            "code": "analysis_claim_unavailable",
-                            "claim": f"{cell_text}: {cell}"[:200],
-                            "value": unsupported[0],
-                            "kind": kind,
-                            "message": (
-                                "No supporting analysis evidence (a completed "
-                                "backtest result or observed risk metric) exists "
-                                "for this figure. Mark the analysis as incomplete "
-                                "and omit these figures."
-                            ),
-                        }
-                    )
+                    self._check_table_cell(cell_text, kind, cell, issues)
         for index, line in enumerate(lines):
             if index in consumed:
                 continue
@@ -2813,6 +2829,56 @@ class GroundingLedger:
                     }
                 )
         return issues
+
+    def _check_table_cell(
+        self,
+        label: str,
+        kind: str | None,
+        cell: str,
+        issues: list[dict[str, Any]],
+    ) -> None:
+        """Reject one table cell whose numeric value is an unsupported metric.
+
+        Shared by the metric-headed and generic-header (label, value) table
+        paths. A forecast or definitional annotation exempts only that cell.
+
+        Args:
+            label: The metric label the value is attached to (header cell or
+                row's first cell), for the issue claim text.
+            kind: The resolved metric kind, already derived from ``label``.
+            cell: One value cell to validate.
+            issues: Accumulator for ``analysis_claim_unavailable`` issues.
+        """
+        if kind is None:
+            return
+        values = GroundingLedger._measure_numbers(cell)
+        if not values:
+            return
+        # A forecast annotation inside the cell ("预计 12.4%") exempts only
+        # that cell, never its neighbours.
+        if _FORECAST_FRAME_RE.search(cell) or _DEFINITION_FRAME_RE.search(cell):
+            return
+        unsupported = [
+            value
+            for value in values
+            if not self._analysis_value_observed(value, kind)
+        ]
+        if not unsupported:
+            return
+        issues.append(
+            {
+                "code": "analysis_claim_unavailable",
+                "claim": f"{label}: {cell}"[:200],
+                "value": unsupported[0],
+                "kind": kind,
+                "message": (
+                    "No supporting analysis evidence (a completed "
+                    "backtest result or observed risk metric) exists "
+                    "for this figure. Mark the analysis as incomplete "
+                    "and omit these figures."
+                ),
+            }
+        )
 
     @staticmethod
     def _measure_numbers(text: str) -> list[str]:
