@@ -1331,6 +1331,97 @@ def test_price_validation_ignores_score_indicator_and_window_digits(
         assert result.valid is True, (draft, result.issues)
 
 
+def test_price_validation_ignores_formula_variable_digits(tmp_path: Path) -> None:
+    """A price word used as a formula variable is not an asserted price (#1354).
+
+    The gate uses one structural rule, not a catalogue of phrasings: a number
+    after a price word is a claimed value only when nothing formula-like sits
+    between them. A closed marker set — comparison/division operators or an
+    indicator identifier followed by digits — marks the number an operand; an
+    observation binder ("was", "at", 报收/收于/…) after that marker re-attaches it
+    to the price word, so "close above SMA50 and was 2500" stays a claim while
+    "close/SMA50 > 1" claims nothing. An ASCII sentence boundary (" . ") ends
+    the price word's reach, so a bare year two sentences later is not claimed.
+    """
+    ledger = _screened_ledger(tmp_path)
+
+    for draft in (
+        # Division + comparison: window and threshold, not a price.
+        "000543.SZ close/SMA50 > 1 时买入（source: tencent）",
+        # Signal value after a signal word / arrow / 触发.
+        "000543.SZ close acima da EMA30 dispara sinal +1（source: tencent）",
+        "000543.SZ close above EMA20 -> +1（source: tencent）",
+        "000543.SZ 收盘价上穿MA20 触发 +1 信号（source: tencent）",
+        # Plain comparison against a level, not a quote.
+        "000543.SZ close > 1 时买入（source: tencent）",
+        # Indicator reading with a directional connective.
+        "000543.SZ close/SMA50 > 1 and RSI below 30（source: tencent）",
+        # Colon after the signal word (ASCII '.' is not a clause separator,
+        # so "Sinal: +1" can share a clause with the price word).
+        "000543.SZ close acima da EMA30. Sinal: +1（source: tencent）",
+        # Indicator identifier + digits between the price word and the number,
+        # even when the operator is spelled out in prose.
+        "000543.SZ close vs SMA20 maior que 1（source: tencent）",
+        "000543.SZ close minus SMA20 fallen below 0（source: tencent）",
+    ):
+        result = ledger.validate_final_answer(draft)
+        assert result.valid is True, (draft, result.issues)
+
+    # Strict-narrowing bar: the formula language must not launder an observed
+    # value. Verified adversarially; each shape stays a claim.
+    for launder in (
+        # no operator, no indicator digits: the plain claim
+        "000543.SZ close was 2500（source: tencent）",
+        # digit-carrying connector bridging to an indicator
+        "000543.SZ close was 2500 and SMA50 2450（source: tencent）",
+        # observation verb trailing the formula in the same clause
+        "000543.SZ close above SMA50 and was 2500 yesterday（source: tencent）",
+        # at-attached level trailing the formula
+        "000543.SZ close above SMA50 at 2450（source: tencent）",
+        # equality claim, not a formula
+        "000543.SZ close = 2500（source: tencent）",
+        # second price word after a comma stays gated
+        "000543.SZ close above SMA50, and closed at 2500 yesterday（source: tencent）",
+        # Chinese observation syntax
+        "000543.SZ 收盘价报收 2500（source: tencent）",
+        # multi-digit value after a signal word is a price, not a signal
+        "000543.SZ close signal 2500（source: tencent）",
+        # "above" with a price word is a claim, not an indicator reading
+        "000543.SZ close above 2500（source: tencent）",
+    ):
+        result = ledger.validate_final_answer(launder)
+        assert result.valid is False, launder
+        assert "numeric_claim_conflict" in {issue["code"] for issue in result.issues}
+
+
+def test_direct_price_values_structural_rule() -> None:
+    """The structural rule decides operand vs. claim at the number level (#1354)."""
+    extract = GroundingLedger._direct_price_values
+    # Formula operands — a marker between the price word and the number.
+    for text in (
+        "close/SMA50 > 1.0",
+        "close acima da EMA30 dispara sinal +1",
+        "收盘价上穿MA20 触发 +1 信号",
+        "close/SMA50 > 1 and RSI below 30",
+        "close vs SMA20 maior que 1",
+        "close minus SMA20 fallen below 0",
+        # CJK-adjacent indicator (no ASCII space): the marker's \b must not
+        # treat a CJK letter as a word character, or 上穿MA20 is invisible.
+        "收盘价上穿SMA20 2500",
+    ):
+        assert extract(text) == [], text
+    # Observed values — no marker, or an observation binder after the marker.
+    assert extract("close was 2500") == [2500.0]
+    assert extract("close above 2500") == [2500.0]
+    assert extract("close = 2500") == [2500.0]
+    assert extract("close above SMA50 and was 2500 yesterday") == [2500.0]
+    assert extract("close above SMA50 at 2450") == [2450.0]
+    assert extract("收盘价报收 2500") == [2500.0]
+    # Sentence boundary: the price word cannot reach a later sentence.
+    assert extract("close was 210. In 2024 the market rallied") == [210.0]
+    assert extract("close. Sinal: 2500") == []
+
+
 def test_price_validation_ignores_short_dates_and_percent_ranges(
     tmp_path: Path,
 ) -> None:

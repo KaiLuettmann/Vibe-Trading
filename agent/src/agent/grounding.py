@@ -505,7 +505,12 @@ _INDICATOR_VALUE_RE = re.compile(
     r"\b(?:rsi|macd|atr|adx|cci|obv|kdj|boll|dif|dea|vix|iv|"
     r"sharpe|sortino|beta)\b"
     r"(?:\s*\([^)]{0,20}\))?"
-    r"\s*(?:is|at|of|reads?|=|为|是)?\s*[:：]?\s*"
+    # #1354: "RSI below 30" / "sharpe above 1" — a directional connective is
+    # part of the indicator reading, so the reading's number stays masked.
+    # Only indicator NAMES get these connectives; a price word with
+    # "below/above" ("close above 2500") is an observed-value claim and
+    # matches none of these names, so it stays gated.
+    r"\s*(?:is|at|of|reads?|=|为|是|below|above|under|over)?\s*[:：]?\s*"
     r"[-+]?\d[\d,]*(?:\.\d+)?",
     re.IGNORECASE,
 )
@@ -520,6 +525,22 @@ _CURRENCY_TOKEN = r"(?:\$|US\$|C\$|HK\$|CAD|USD|CNY|HKD|¥|￥)?"
 # yet both went to the OHLC check and rejected a weekly update whose quotes
 # were correct. This is the same category as the target/stop levels below -- a
 # level the report proposes, not one the data source reported.
+
+# #1354: a signal value trailing an arrow or a signal word ("sinal +1",
+# "-> +1", "触发 +1", "Sinal: +1") is the formula's output, not an observed
+# price. Signal values are small integers (a +/-1 signal, a 1-10 score); a
+# multi-digit price never follows these words, so the digit bound keeps
+# "close -> 2500" (a price claim written in arrow notation) gated. The colon
+# is optional ("Sinal: +1" — ASCII '.' is not a clause separator, so this can
+# sit in the same clause as the price word), the sign may be spaced ("sinal
+# - 1"), and the lookahead stops the bound from masking the first two digits
+# of a longer number ("signal 2500" keeps the full 2500 gated).
+_SIGNAL_VALUE_RE = re.compile(
+    r"(?:\b(?:signal|sinal|trigger|triggers|triggered|dispara|信号|触发)\b[:：]?"
+    r"|->|→|=>)"
+    r"\s*[-+]?\s*\d{1,2}(?:\.\d+)?(?!\d)",
+    re.IGNORECASE,
+)
 _ORDER_LEVEL_RE = re.compile(
     r"(?:"
     # (a) "<qty> [股|shares] @ <price>" -- the whole clause, quantity included
@@ -645,6 +666,40 @@ _PROSPECTIVE_LEVEL_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
+# #1354: the closed structural rule for prose price claims. A number that
+# follows a price-context word is an observed value only when nothing
+# formula-like binds it instead. Two closed token classes decide that:
+#
+#   * a formula marker sitting between the price word and the number — a
+#     comparison/division operator, or an indicator identifier followed by
+#     digits (SMA/EMA/…/VWAP + digits; MA for the Chinese MA20 convention) —
+#     turns the number into an operand of the formula, not a claimed value;
+#   * an observation binder after that marker ("was", "at", 报收/收于/收报/收在)
+#     re-attaches the number to the price word, so "close above SMA50 and was
+#     2500" stays a claim while "close/SMA50 > 1" claims nothing.
+#
+# This replaces the per-phrasing denylist (a signal-value mask, an indicator-
+# connective mask, …) with one syntactic distinction; the catalogue of
+# phrasings can never close, a closed marker set can.
+_FORMULA_MARKER_RE = re.compile(
+    r"(?:>=|<=|≥|≤|>|<|/)"
+    r"|\b(?:SMA|EMA|WMA|DMA|MA|RSI|MACD|ATR|ADX|CCI|OBV|KDJ|BOLL|VWAP)\d+\b",
+    re.IGNORECASE | re.ASCII,
+)
+_OBSERVATION_BINDER_RE = re.compile(
+    r"\b(?:was|were|is|are|at)\b|(?:报收|收于|收报|收在)|==|=|≈",
+    re.IGNORECASE,
+)
+# The clause splitter does not split on the ASCII period, so "close was 210.
+# In 2024 the market rallied" stays one clause and 2024 would be misread as
+# the asserted price. A period/bang/question followed by whitespace and a
+# sentence-start (capital, quote, or bracket) is a boundary here — but only
+# in this price-claim scan, never in the global clause splitter, where it
+# would tear apart "000543.SZ" and "1.5". The capital/open-bracket lookahead
+# deliberately excludes abbreviations: "close approx. 2500" keeps 2500 gated.
+_SENTENCE_BOUNDARY_RE = re.compile(r"[.!?]\s+(?=[A-Z(（])")
+
+
 # Full-width enumeration commas delimit prose clauses. Paired brackets (ASCII
 # or full-width ()()[]) are deliberately not separators: an explicit
 # derivation such as "(8.5 - 7.9) / 2" must stay in one segment for the
@@ -2998,7 +3053,7 @@ class GroundingLedger:
             for segment in _split_clauses(line):
                 if not _PRICE_CONTEXT_RE.search(segment):
                     continue
-                values = self._numbers_without_dates_or_percent(segment)
+                values = self._direct_price_values(segment)
                 if not values:
                     continue
                 has_price_claim = True
@@ -3315,6 +3370,42 @@ class GroundingLedger:
         return records
 
     @staticmethod
+    def _masked_candidate_text(text: str) -> str:
+        """Mask every non-price digit run, preserving string length and offset.
+
+        Each mask match is replaced by an equal-length run of spaces, so a
+        number's offset in the returned string is its offset in ``text`` — the
+        structural price-claim scan needs that alignment.
+        """
+        masked = text
+        for pattern in (
+            _MD_LIST_ITEM_RE,
+            _RATE_FORMULA_IDENTITY_RE,
+            _CANONICAL_SYMBOL_RE,
+            _LOCALIZED_DATE_RE,
+            _DATE_RE,
+            _SHORT_DATE_RE,
+            _DASH_DATE_RE,
+            _PERCENT_RANGE_RE,
+            _PERCENTAGE_POINT_RE,
+            _ORDER_LEVEL_RE,
+            _AGGREGATE_AMOUNT_RE,
+            _LABELLED_SCORE_RE,
+            _INDICATOR_VALUE_RE,
+            _SIGNAL_VALUE_RE,
+            _PROSPECTIVE_LEVEL_RE,
+            _REFERENCE_LEVEL_RE,
+            _SINCE_REFERENCE_RE,
+            _LINE_REFERENCE_RE,
+            _NUMBERED_HEADING_RE,
+            _RATIO_RE,
+            _FX_RATE_RE,
+            _QUANTITY_WITH_UNIT_RE,
+        ):
+            masked = pattern.sub(lambda m: " " * (m.end() - m.start()), masked)
+        return masked
+
+    @staticmethod
     def _numbers_without_dates_or_percent(text: str) -> list[float]:
         """Extract the numbers in a claim that could plausibly be prices.
 
@@ -3332,36 +3423,60 @@ class GroundingLedger:
         Returns:
             Candidate price values, in order of appearance.
         """
-        masked = _MD_LIST_ITEM_RE.sub(" ", text)
-        masked = _RATE_FORMULA_IDENTITY_RE.sub(" ", masked)
-        masked = _CANONICAL_SYMBOL_RE.sub(" ", masked)
-        masked = _LOCALIZED_DATE_RE.sub(" ", masked)
-        masked = _DATE_RE.sub(" ", masked)
-        masked = _SHORT_DATE_RE.sub(" ", masked)
-        masked = _DASH_DATE_RE.sub(" ", masked)
-        masked = _PERCENT_RANGE_RE.sub(" ", masked)
-        masked = _PERCENTAGE_POINT_RE.sub(" ", masked)
-        masked = _ORDER_LEVEL_RE.sub(" ", masked)
-        masked = _AGGREGATE_AMOUNT_RE.sub(" ", masked)
-        masked = _LABELLED_SCORE_RE.sub(" ", masked)
-        masked = _INDICATOR_VALUE_RE.sub(" ", masked)
-        masked = _PROSPECTIVE_LEVEL_RE.sub(" ", masked)
-        masked = _REFERENCE_LEVEL_RE.sub(" ", masked)
-        masked = _SINCE_REFERENCE_RE.sub(" ", masked)
-        masked = _LINE_REFERENCE_RE.sub(" ", masked)
-        masked = _NUMBERED_HEADING_RE.sub(" ", masked)
-        masked = _RATIO_RE.sub(" ", masked)
-        masked = _FX_RATE_RE.sub(" ", masked)
-        without_dates = _QUANTITY_WITH_UNIT_RE.sub(" ", masked)
+        masked = GroundingLedger._masked_candidate_text(text)
         values: list[float] = []
-        for match in _NUMBER_RE.finditer(without_dates):
-            tail = without_dates[match.end() :].lstrip()
+        for match in _NUMBER_RE.finditer(masked):
+            tail = masked[match.end() :].lstrip()
             if tail.startswith(("%", "％")):
                 continue
             try:
                 values.append(float(match.group(0).replace(",", "")))
             except ValueError:
                 continue
+        return values
+
+    @staticmethod
+    def _direct_price_values(text: str) -> list[float]:
+        """Numbers in a price segment that read as asserted observed values.
+
+        ``_numbers_without_dates_or_percent`` returns every non-masked number;
+        this further drops numbers that are formula operands rather than claims
+        (#1354). For each surviving number, the span between the nearest
+        preceding price-context word and the number decides:
+
+        * a sentence boundary (``. ``/``! ``/``? ``) in the span — the number
+          belongs to a later sentence the price word cannot reach ("close was
+          210. In 2024 …" must not claim 2024);
+        * otherwise, a closed formula marker in the span turns the number into
+          an operand, unless an observation binder ("was", "at", 报收/收于/…) after
+          the last marker re-attaches it to the price word.
+
+        "close/SMA50 > 1" and "close above SMA50 and was 2500" are decided in
+        opposite directions by the binder; "close was 2500" (no marker) stays
+        a claim either way.
+        """
+        price_words = list(_PRICE_CONTEXT_RE.finditer(text))
+        masked = GroundingLedger._masked_candidate_text(text)
+        values: list[float] = []
+        for match in _NUMBER_RE.finditer(masked):
+            tail = masked[match.end() :].lstrip()
+            if tail.startswith(("%", "％")):
+                continue
+            try:
+                value = float(match.group(0).replace(",", ""))
+            except ValueError:
+                continue
+            preceding = [w for w in price_words if w.end() <= match.start()]
+            if preceding:
+                span = text[preceding[-1].end() : match.start()]
+                if _SENTENCE_BOUNDARY_RE.search(span):
+                    continue
+                markers = list(_FORMULA_MARKER_RE.finditer(span))
+                if markers and not _OBSERVATION_BINDER_RE.search(
+                    span[markers[-1].end() :]
+                ):
+                    continue
+            values.append(value)
         return values
 
     def _is_explicit_derivation(
