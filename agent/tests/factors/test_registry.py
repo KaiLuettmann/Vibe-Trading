@@ -254,3 +254,17 @@ def test_export_manifest_shape(mini_zoo: Path) -> None:
     assert "generated_at" in m
     assert m["zoos"][0]["zoo_id"] == "fakezoo"
     assert len(m["zoos"][0]["alphas"]) == 4
+
+
+def test_registry_masks_nan_on_declared_dependencies(mini_zoo: Path) -> None:
+    reg = Registry(zoo_root=mini_zoo)
+    panel = _panel()
+    # NaN in a required column should propagate to output
+    panel["close"].iloc[2, 0] = np.nan
+    out = reg.compute("fakezoo_001", panel)
+    assert np.isnan(out.iloc[2, 0])
+    # Also test with NaN in another required column
+    panel = _panel()
+    panel["open"].iloc[1, 1] = np.nan
+    out = reg.compute("fakezoo_001", panel)
+    assert np.isnan(out.iloc[1, 1])
