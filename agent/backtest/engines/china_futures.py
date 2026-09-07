@@ -128,6 +128,27 @@ def _extract_product(symbol: str) -> str:
     return m.group(1) if m else code
 
 
+def _ci_lookup(table: dict, product: str, default):
+    """Case-insensitive product lookup.
+
+    The tables above key CFFEX/ZCE products uppercase (IF, CF) and
+    SHFE/DCE/INE/GFEX products lowercase (au, rb) — but this project's
+    own documented symbol convention and Tushare's real ts_code values
+    (data-routing/SKILL.md: CU2406.SHFE; tushare 日线行情.md: CU1811.SHF)
+    use uppercase product codes across every exchange. A caller that
+    follows that convention for a SHFE/DCE/INE/GFEX product would
+    otherwise miss the table entirely and silently fall back to the
+    generic default.
+    """
+    if product in table:
+        return table[product]
+    if product.lower() in table:
+        return table[product.lower()]
+    if product.upper() in table:
+        return table[product.upper()]
+    return default
+
+
 class ChinaFuturesEngine(FuturesBaseEngine):
     """China futures engine covering CFFEX / SHFE / DCE / ZCE / INE / GFEX.
 
@@ -146,7 +167,7 @@ class ChinaFuturesEngine(FuturesBaseEngine):
             codes = config.get("codes", [])
             if codes:
                 product = _extract_product(codes[0])
-                mr = _MARGIN_RATE.get(product, 0.10)
+                mr = _ci_lookup(_MARGIN_RATE, product, 0.10)
                 leverage = 1.0 / mr
             else:
                 leverage = 10.0  # ~10% margin default
@@ -174,7 +195,7 @@ class ChinaFuturesEngine(FuturesBaseEngine):
 
         # Price limit, tested at execution time (see _blocked_by_limit).
         product = _extract_product(symbol)
-        limit = _PRICE_LIMIT.get(product, _DEFAULT_PRICE_LIMIT)
+        limit = _ci_lookup(_PRICE_LIMIT, product, _DEFAULT_PRICE_LIMIT)
         pos = self.positions.get(symbol) if direction == 0 else None
         if pos is None and direction == 0:
             return True
@@ -216,8 +237,8 @@ class ChinaFuturesEngine(FuturesBaseEngine):
             Commission in RMB.
         """
         product = _extract_product(symbol)
-        mode, value = _COMMISSION.get(product, _DEFAULT_COMMISSION)
-        cm = _MULTIPLIER.get(product, 10)
+        mode, value = _ci_lookup(_COMMISSION, product, _DEFAULT_COMMISSION)
+        cm = _ci_lookup(_MULTIPLIER, product, 10)
         if mode == "rate":
             return size * price * cm * value
         return size * value
@@ -229,7 +250,7 @@ class ChinaFuturesEngine(FuturesBaseEngine):
     def get_contract_multiplier(self, symbol: str) -> float:
         """Look up contract multiplier from product code."""
         product = _extract_product(symbol)
-        return float(_MULTIPLIER.get(product, 10))
+        return float(_ci_lookup(_MULTIPLIER, product, 10))
 
     def get_margin_rate(self, symbol: str) -> float:
         """Look up exchange margin rate for a product.
@@ -241,7 +262,7 @@ class ChinaFuturesEngine(FuturesBaseEngine):
             Margin rate (e.g. 0.10 for 10%).
         """
         product = _extract_product(symbol)
-        return _MARGIN_RATE.get(product, 0.10)
+        return _ci_lookup(_MARGIN_RATE, product, 0.10)
 
     def _leverage_for_symbol(self, symbol: str) -> float:
         """Derive leverage from this contract's own margin requirement."""
