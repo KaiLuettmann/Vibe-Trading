@@ -71,3 +71,27 @@ class TestCopulaAnalytics:
         # Gaussian: tau = 0.5 -> rho = sin(pi/4) ~ 0.7071
         res_gauss = fit_copula_from_tau(0.5, family="gaussian")
         assert res_gauss["rho"] == pytest.approx(np.sin(np.pi / 4))
+
+    def test_frank_copula_is_stable_for_large_theta(self) -> None:
+        # theta=80 used to return inf (catastrophic cancellation); the correct
+        # value converges to 0.4913356602430007 (verified at 60-digit precision).
+        val = frank_copula_cdf(0.5, 0.5, 80.0)
+        assert np.isfinite(val)
+        assert val == pytest.approx(0.4913356602430007, abs=1e-12)
+
+    def test_clayton_copula_is_stable_for_large_theta(self) -> None:
+        # theta=10000 used to return 0.0 (u^{-theta} overflowed to inf).
+        val = clayton_copula_cdf(0.5, 0.5, 10000.0)
+        assert val == pytest.approx(0.4999653438420768, abs=1e-12)
+
+    def test_gumbel_copula_is_stable_for_large_theta(self) -> None:
+        # theta=3000 used to return 1.0 ((-ln u)^theta underflowed to 0.0).
+        val = gumbel_copula_cdf(0.5, 0.5, 3000.0)
+        assert val == pytest.approx(0.4999199216595084, abs=1e-12)
+
+    def test_archimedean_cdfs_converge_to_min_under_perfect_dependence(self) -> None:
+        # Under perfect positive dependence every Archimedean copula converges
+        # to min(u, v).
+        assert frank_copula_cdf(0.3, 0.7, 200.0) == pytest.approx(0.3, abs=1e-6)
+        assert clayton_copula_cdf(0.3, 0.7, 10000.0) == pytest.approx(0.3, abs=1e-6)
+        assert gumbel_copula_cdf(0.3, 0.7, 3000.0) == pytest.approx(0.3, abs=1e-6)
