@@ -3630,3 +3630,50 @@ def test_generic_header_table_matches_prose_verdicts(tmp_path: Path) -> None:
     assert bare.validate_final_answer(
         "| 指标 | 数值 |\n|---|---|\n| 预计夏普比率 | 1.2 |"
     ).valid is True
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # Futu writes the venue as a prefix; every one of them must land on
+        # the same identity the market-data chain uses.
+        ("HK.06693", "06693.HK"),
+        ("HK.00700", "00700.HK"),
+        ("HK.700", "00700.HK"),  # zero-padded like the suffix spelling
+        ("US.AAPL", "AAPL.US"),
+        ("US.BRK-B", "BRK-B.US"),
+        ("SH.600519", "600519.SH"),
+        ("SS.600519", "600519.SH"),  # Yahoo's Shanghai alias folds onto .SH
+        ("SZ.000001", "000001.SZ"),
+        ("BJ.430047", "430047.BJ"),
+        # Negatives: a non-numeric venue code is not a listing (HK.HSI is an
+        # index feed), and the suffix spellings stay untouched.
+        ("HK.HSI", "HK.HSI"),
+        ("06693.HK", "06693.HK"),
+        ("AAPL.US", "AAPL.US"),
+        ("600519.SH", "600519.SH"),
+    ],
+)
+def test_normalize_venue_prefixed_symbols(raw: str, expected: str) -> None:
+    """A Futu-style venue prefix normalizes onto the canonical suffix form."""
+    assert _normalize_symbol(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("分析港股 HK.06693 的走势", {"06693.HK"}),
+        ("持仓 US.AAPL 与 HK.00700", {"AAPL.US", "00700.HK"}),
+        ("对比 SH.600519 和 SZ.000001", {"600519.SH", "000001.SZ"}),
+        # Negatives: prose and URLs must not become symbols. The US branch is
+        # case-sensitive precisely so a "…/us.reuters/…" host cannot.
+        ("Revenue grew in the US. Apple led the pack.", set()),
+        ("Listed in the U.S. AAPL is the largest.", set()),
+        ("see https://example.com/us.quotes for details", set()),
+    ],
+)
+def test_scan_symbols_detects_venue_prefixed_symbols(
+    text: str, expected: set[str]
+) -> None:
+    """A pasted connector code is locked as an identity, prose is not."""
+    assert _scan_symbols(text) == expected

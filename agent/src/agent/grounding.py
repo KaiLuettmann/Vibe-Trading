@@ -198,7 +198,17 @@ _JOINED_CRYPTO_RE = re.compile(
 _CANONICAL_SYMBOL_RE = re.compile(
     r"(?<![A-Za-z0-9_])(?:"
     r"\d{3,6}\.(?:SH|SZ|BJ|SS|HK|KS|KQ)|"
-    r"HK\.\d{3,6}|"          # <-- added: HK-prefixed code (Futu connector format, e.g. HK.06693)
+    # Futu writes the venue as a PREFIX (HK.00700 / SH.600519 / US.AAPL). The
+    # suffix branch above cannot see it, so a user who pasted a connector code
+    # got no identity lock at all and every market tool answered
+    # identity_required. Handled for the whole prefix set, not just HK: the
+    # connector emits all four, and one venue's fix leaves the same hole open
+    # in the next.
+    r"(?:HK|SH|SZ|BJ|SS)\.\d{3,6}|"
+    # Case-SENSITIVE (the connector writes it uppercase): a case-folded
+    # match turns any "…/us.reuters/…" host inside a source URL into the
+    # symbol REUTERS.US and fails the answer for an unsourced figure.
+    r"(?-i:US\.[A-Z][A-Z0-9&-]{0,19})|"
     r"[A-Z][A-Z0-9&.-]{0,19}\.(?:US|NS|BO|FX|TO|V)|"
     r"[A-Z0-9]{2,15}(?:-|/)(?:USDT|USDC|USD|BTC|ETH)|"
     r"[A-Z]{2,15}(?:" + "|".join(_JOINED_CRYPTO_QUOTE_SUFFIXES) + r")|"
@@ -813,6 +823,11 @@ def _utc_now() -> str:
 # for one listing, which no tie-break could resolve, so every Shanghai listing
 # resolved ``ambiguous`` and no market tool could run for the rest of the run.
 _EXCHANGE_PREFIXED_RE = re.compile(r"^(SH|SZ|BJ)(\d{6})$")
+# The dotted form of the same idea, as the Futu connector spells it
+# (``HK.00700`` / ``US.AAPL``). ``SS`` is Yahoo's Shanghai alias and folds
+# onto ``SH`` exactly as the suffix spelling does.
+_VENUE_PREFIXES = frozenset({"HK", "SH", "SZ", "BJ", "SS", "US"})
+_US_TICKER_RE = re.compile(r"[A-Z][A-Z0-9&-]{0,19}")
 
 
 def _normalize_symbol(value: Any) -> str:
@@ -859,12 +874,19 @@ def _normalize_symbol(value: Any) -> str:
                     if base_part.isalpha():
                         return f"{base_part}-{quote}"
         return symbol
-    # HK-prefixed listing (Futu connector format, e.g. HK.06693 / HK.01288):
-    # rewrite to the canonical .HK suffix so identity matching agrees with the
-    # market-data chain (06693.HK) used by get_market_data.
-    if base == "HK" and suffix.replace(".", "", 1).isdigit():
-        digits = suffix.split(".")[0]
-        return f"{digits.zfill(5)}.HK"
+    # Venue-prefixed listing (Futu connector format: HK.06693 / SH.600519 /
+    # SZ.000001 / US.AAPL): rewrite to the canonical suffix spelling so
+    # identity matching agrees with the market-data chain (06693.HK) that
+    # get_market_data uses. Shanghai's .SS alias is folded onto .SH here too,
+    # the same way the suffix branch below does it.
+    if base in _VENUE_PREFIXES and suffix:
+        venue = "SH" if base == "SS" else base
+        if venue == "US":
+            if _US_TICKER_RE.fullmatch(suffix):
+                return f"{suffix}.US"
+        elif suffix.isdigit():
+            digits = suffix.zfill(5) if venue == "HK" else suffix
+            return f"{digits}.{venue}"
     if suffix == "SS":
         suffix = "SH"
     if suffix == "HK" and base.isdigit():
