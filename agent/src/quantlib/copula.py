@@ -63,7 +63,13 @@ def clayton_copula_cdf(u: float | np.ndarray, v: float | np.ndarray, theta: floa
     if np.any((u_arr <= 0.0) | (u_arr > 1.0) | (v_arr <= 0.0) | (v_arr > 1.0)):
         raise ValueError("u and v marginals must be in (0, 1]")
 
-    val = np.maximum(0.0, u_arr ** (-theta) + v_arr ** (-theta) - 1.0) ** (-1.0 / theta)
+    # Compute in log space so u^{-theta} never overflows for large theta:
+    # log(u^{-theta} + v^{-theta} - 1) = logaddexp(a, b) + log1p(-exp(-logaddexp(a, b)))
+    a = -theta * np.log(u_arr)
+    b = -theta * np.log(v_arr)
+    lse = np.logaddexp(a, b)
+    log_inner = lse + np.log1p(-np.exp(-lse))
+    val = np.exp(-log_inner / theta)
     return float(val) if np.ndim(val) == 0 else val
 
 
@@ -95,8 +101,14 @@ def gumbel_copula_cdf(u: float | np.ndarray, v: float | np.ndarray, theta: float
     if np.any((u_arr <= 0.0) | (u_arr > 1.0) | (v_arr <= 0.0) | (v_arr > 1.0)):
         raise ValueError("u and v marginals must be in (0, 1]")
 
-    term = (-np.log(u_arr)) ** theta + (-np.log(v_arr)) ** theta
-    val = np.exp(-(term ** (1.0 / theta)))
+    # Compute in log space so (-ln u)^theta never underflows for large theta:
+    # log((-ln u)^theta + (-ln v)^theta) = logaddexp(theta*log(-log u), theta*log(-log v))
+    # A marginal of exactly 1.0 gives log(-log 1) = log(0) = -inf, which
+    # logaddexp handles correctly; silence the divide-by-zero warning.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        a = theta * np.log(-np.log(u_arr))
+        b = theta * np.log(-np.log(v_arr))
+    val = np.exp(-np.exp(np.logaddexp(a, b) / theta))
     return float(val) if np.ndim(val) == 0 else val
 
 
@@ -122,9 +134,22 @@ def frank_copula_cdf(u: float | np.ndarray, v: float | np.ndarray, theta: float)
     if np.any((u_arr <= 0.0) | (u_arr > 1.0) | (v_arr <= 0.0) | (v_arr > 1.0)):
         raise ValueError("u and v marginals must be in (0, 1]")
 
-    num = (np.exp(-theta * u_arr) - 1.0) * (np.exp(-theta * v_arr) - 1.0)
-    den = np.exp(-theta) - 1.0
-    val = -1.0 / theta * np.log(1.0 + num / den)
+    # The naive form cancels catastrophically for large theta (num/den -> -1,
+    # log(0) -> -inf). For theta > 0, factor e^{-theta*s} out of the numerator
+    # and compute in log space; each correction term underflows to 0.0
+    # harmlessly. For theta < 0 the direct form is stable over any realistic
+    # parameter, so it is kept unchanged.
+    if theta > 0:
+        s = np.minimum(u_arr, v_arr)
+        t = np.maximum(u_arr, v_arr)
+        inner = 1.0 + np.exp(-theta * (t - s)) - np.exp(-theta * t) - np.exp(-theta * (1.0 - s))
+        log_num = -theta * s + np.log(inner)
+        log_den = np.log1p(-np.exp(-theta))
+        val = -(1.0 / theta) * (log_num - log_den)
+    else:
+        num = (np.exp(-theta * u_arr) - 1.0) * (np.exp(-theta * v_arr) - 1.0)
+        den = np.exp(-theta) - 1.0
+        val = -1.0 / theta * np.log(1.0 + num / den)
     return float(val) if np.ndim(val) == 0 else val
 
 
