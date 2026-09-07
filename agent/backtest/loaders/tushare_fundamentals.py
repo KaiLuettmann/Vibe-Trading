@@ -261,6 +261,30 @@ def _parse_tushare_date(value: str | pd.Timestamp) -> pd.Timestamp:
     return pd.to_datetime(text).normalize()
 
 
+SUBDAILY_POLICIES = ("reject", "next_day")
+
+
+def _is_subdaily_index(index: pd.Index) -> bool:
+    """Report whether a price frame's index carries intraday bars.
+
+    A frame is sub-daily when any timestamp has a time-of-day component, or
+    when one calendar day holds more than one bar. Either alone is enough:
+    a 1h frame that happens to start at midnight still repeats the day.
+
+    Args:
+        index: A price frame's index.
+
+    Returns:
+        ``True`` when the frame is finer than one bar per day.
+    """
+    stamps = pd.to_datetime(index)
+    if len(stamps) == 0:
+        return False
+    if (stamps != stamps.normalize()).any():
+        return True
+    return bool(stamps.normalize().duplicated().any())
+
+
 def enrich_price_frames_with_fundamentals(
     data_map: dict[str, pd.DataFrame],
     provider: TushareFundamentalProvider,
@@ -268,8 +292,19 @@ def enrich_price_frames_with_fundamentals(
     *,
     as_of: str | pd.Timestamp,
     periods: Iterable[str] | None = None,
+    subdaily: str = "reject",
 ) -> dict[str, pd.DataFrame]:
     """Attach PIT-safe fundamental snapshots to daily price frames.
+
+    Sub-daily frames (``subdaily``): Tushare's ``ann_date`` / ``f_ann_date``
+    is a date with no time of day, and CN filings typically land after the
+    close, so a day-granular visibility rule applied to intraday bars makes
+    a filing visible from the first bar of its own announcement day — a real
+    lookahead below 1D. Daily runs are unaffected because a signal on day D
+    fills at D+1's open at the earliest. ``"reject"`` (the default) raises
+    rather than enriching an intraday frame; ``"next_day"`` opts in to
+    intraday enrichment with the conservative convention that a filing
+    announced on D is visible from the first bar of D+1.
 
     Fundamental columns are prefixed with their table name, for example
     ``income_total_revenue`` and ``fina_indicator_roe``. Each row becomes
@@ -283,8 +318,27 @@ def enrich_price_frames_with_fundamentals(
     currently visible.  Same-period restatements (same ``end_date``, later
     pit date) do update the visible values.
     """
+    if subdaily not in SUBDAILY_POLICIES:
+        raise ValueError(
+            f"subdaily must be one of {SUBDAILY_POLICIES}, got {subdaily!r}"
+        )
     if not data_map or not fields_by_table:
         return data_map
+
+    subdaily_codes = [
+        code
+        for code, frame in data_map.items()
+        if not frame.empty and _is_subdaily_index(frame.index)
+    ]
+    if subdaily_codes and subdaily == "reject":
+        raise ValueError(
+            "fundamental_fields is PIT-safe for daily frames only; "
+            f"{', '.join(sorted(subdaily_codes)[:5])} carry intraday bars, where an "
+            "ann_date with no time of day would be visible from the first bar of "
+            "its own announcement day. Run the backtest daily, or set "
+            "fundamental_subdaily='next_day' to accept the conservative "
+            "first-bar-of-the-next-day convention."
+        )
 
     enriched = {code: frame.copy() for code, frame in data_map.items()}
     codes = list(enriched)
@@ -357,6 +411,14 @@ def enrich_price_frames_with_fundamentals(
             right = timeline[["_pit_date", *value_columns]].rename(
                 columns={column: f"{table}_{column}" for column in value_columns}
             )
+
+            if code in subdaily_codes:
+                # ``next_day``: an announcement dated D becomes visible one
+                # calendar day later, i.e. from the first bar of D+1. The bar
+                # index is normalized to midnight below, so shifting the pit
+                # date by one day is exactly that boundary.
+                right = right.copy()
+                right["_pit_date"] = right["_pit_date"] + pd.Timedelta(days=1)
 
             left = frame.copy()
             original_index = left.index

@@ -32,6 +32,7 @@ from backtest.loaders.rsshub_events import (
     feed_specs_from_config,
 )
 from backtest.loaders.tushare_fundamentals import (
+    SUBDAILY_POLICIES,
     TushareFundamentalProvider,
     enrich_price_frames_with_fundamentals,
 )
@@ -409,6 +410,12 @@ def _maybe_enrich_fundamentals(
     if not fields_by_table:
         return data_map
 
+    subdaily = str(config.get("fundamental_subdaily", "reject")).strip().lower()
+    if subdaily not in SUBDAILY_POLICIES:
+        raise ValueError(
+            f"fundamental_subdaily must be one of {SUBDAILY_POLICIES}, got {subdaily!r}"
+        )
+
     try:
         provider = TushareFundamentalProvider()
         return enrich_price_frames_with_fundamentals(
@@ -417,7 +424,13 @@ def _maybe_enrich_fundamentals(
             fields_by_table,
             as_of=config.get("end_date", ""),
             periods=config.get("fundamental_periods"),
+            subdaily=subdaily,
         )
+    except ValueError:
+        # A configuration/contract error (an intraday frame under the default
+        # reject policy) is the caller's to fix and must not be reworded as a
+        # provider failure.
+        raise
     except Exception as exc:
         raise RuntimeError(
             f"fundamental_fields requested but Tushare enrichment failed: {exc}"

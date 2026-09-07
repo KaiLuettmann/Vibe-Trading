@@ -374,3 +374,133 @@ def test_t3_enrich_same_period_restatement_updates_value() -> None:
         assert result.loc[d, "income_revenue"] == 95.0, (
             f"{d.date()}: expected restated revenue=95, got {result.loc[d, 'income_revenue']}"
         )
+
+
+# ---------------------------------------------------------------------------
+# #1387: PIT visibility on sub-daily frames
+# ---------------------------------------------------------------------------
+
+
+class _AnnouncementApi:
+    """One filing announced on 2024-04-26, the day the intraday bars cover."""
+
+    def income(self, **kwargs: object) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {
+                    "ts_code": kwargs["ts_code"],
+                    "end_date": "20240331",
+                    "ann_date": "20240426",
+                    "f_ann_date": "20240426",
+                    "total_revenue": 120.0,
+                }
+            ]
+        )
+
+
+def _bars(index: pd.DatetimeIndex) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "open": 10.0,
+            "high": 10.5,
+            "low": 9.5,
+            "close": 10.2,
+            "volume": 1000,
+        },
+        index=index,
+    )
+
+
+_INTRADAY_INDEX = pd.to_datetime(
+    [
+        "2024-04-26 09:30",
+        "2024-04-26 10:30",
+        "2024-04-26 15:00",
+        "2024-04-29 09:30",
+        "2024-04-29 10:30",
+    ]
+)
+
+
+def test_subdaily_frames_are_rejected_by_default() -> None:
+    """An ann_date has no time of day, so a day-granular rule leaks intraday.
+
+    Before this guard the 09:30 bar of the announcement day already carried
+    the filing — a lookahead of a full session, on filings that in CN
+    typically land after the close.
+    """
+    provider = TushareFundamentalProvider(api=_AnnouncementApi())
+
+    with pytest.raises(ValueError, match="daily frames only"):
+        enrich_price_frames_with_fundamentals(
+            {"000001.SZ": _bars(_INTRADAY_INDEX)},
+            provider,
+            {"income": ["total_revenue"]},
+            as_of="2024-05-31",
+        )
+
+
+def test_subdaily_next_day_policy_hides_the_announcement_day() -> None:
+    provider = TushareFundamentalProvider(api=_AnnouncementApi())
+
+    result = enrich_price_frames_with_fundamentals(
+        {"000001.SZ": _bars(_INTRADAY_INDEX)},
+        provider,
+        {"income": ["total_revenue"]},
+        as_of="2024-05-31",
+        subdaily="next_day",
+    )["000001.SZ"]
+
+    announcement_day = result.loc["2024-04-26", "income_total_revenue"]
+    assert announcement_day.isna().all(), announcement_day.tolist()
+    # …and the very next bar, on D+1, does carry it: the guard must not turn
+    # into "intraday never sees fundamentals".
+    assert result.loc[pd.Timestamp("2024-04-29 09:30"), "income_total_revenue"] == 120.0
+
+
+def test_daily_frames_keep_same_day_visibility() -> None:
+    """The sub-daily guard must not move the daily contract.
+
+    A daily signal on day D fills at D+1's open at the earliest, so same-day
+    visibility on a daily bar is correct and stays.
+    """
+    provider = TushareFundamentalProvider(api=_AnnouncementApi())
+    daily = pd.to_datetime(["2024-04-25", "2024-04-26", "2024-04-29"])
+
+    result = enrich_price_frames_with_fundamentals(
+        {"000001.SZ": _bars(daily)},
+        provider,
+        {"income": ["total_revenue"]},
+        as_of="2024-05-31",
+    )["000001.SZ"]
+
+    assert pd.isna(result.loc[pd.Timestamp("2024-04-25"), "income_total_revenue"])
+    assert result.loc[pd.Timestamp("2024-04-26"), "income_total_revenue"] == 120.0
+
+
+def test_daily_index_written_with_midnight_times_is_not_flagged_subdaily() -> None:
+    """A daily frame whose stamps carry 00:00 is still daily."""
+    provider = TushareFundamentalProvider(api=_AnnouncementApi())
+    midnight = pd.to_datetime(["2024-04-25 00:00", "2024-04-26 00:00"])
+
+    result = enrich_price_frames_with_fundamentals(
+        {"000001.SZ": _bars(midnight)},
+        provider,
+        {"income": ["total_revenue"]},
+        as_of="2024-05-31",
+    )["000001.SZ"]
+
+    assert result.loc[pd.Timestamp("2024-04-26"), "income_total_revenue"] == 120.0
+
+
+def test_unknown_subdaily_policy_is_rejected() -> None:
+    provider = TushareFundamentalProvider(api=_AnnouncementApi())
+
+    with pytest.raises(ValueError, match="subdaily must be one of"):
+        enrich_price_frames_with_fundamentals(
+            {"000001.SZ": _bars(_INTRADAY_INDEX)},
+            provider,
+            {"income": ["total_revenue"]},
+            as_of="2024-05-31",
+            subdaily="whenever",
+        )
