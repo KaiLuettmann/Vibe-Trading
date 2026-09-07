@@ -184,6 +184,27 @@ _GENERIC_PRICE_FIELD_ALIASES = {
 # ``TUSD``) — ``USD`` is excluded because too many non-crypto strings end
 # in those three letters and over-matching would lock the wrong identity.
 _JOINED_CRYPTO_QUOTE_SUFFIXES = ("USDT", "USDC", "BUSD", "TUSD")
+# A dashed / slashed pair is crypto when its quote leg is unambiguously a
+# crypto quote asset, or when a USD quote sits on one of these bases. Both
+# sets MUST agree with ``_CRYPTO_QUOTE_ASSETS`` / ``_CRYPTO_USD_BASES`` in
+# ``src.tools.symbol_search_tool`` — that module is the resolver, and a venue
+# inferred here that disagrees with the identity it locks is a contradictory
+# identity, which outranks every later lock and blocks all market tools. The
+# tool imports this module, so the sets are duplicated rather than imported;
+# ``test_crypto_pair_tables_match_the_resolver`` fails if they drift. ``USD``
+# is the one quote the resolver accepts that is NOT unambiguous, so it is
+# excluded here and decided by the base whitelist below instead.
+_CRYPTO_QUOTE_ASSETS = frozenset(
+    {"USDT", "USDC", "BUSD", "TUSD", "FDUSD", "BTC", "ETH", "BNB"}
+)
+_CRYPTO_USD_BASES = frozenset(
+    {
+        "BTC", "ETH", "BNB", "SOL", "ADA", "XRP", "DOGE", "TRX", "DOT",
+        "MATIC", "AVAX", "LINK", "LTC", "BCH", "ETC", "XLM", "ATOM",
+        "FIL", "APT", "NEAR", "ALGO", "SAND", "MANA", "AXS", "XAUT",
+        "PAXG",
+    }
+)
 # Spot precious metals quoted in USD collide with the TUSD suffix: XPTUSD is
 # XPT + USD (platinum), but stripping "TUSD" leaves the alpha base "XP" and
 # folds it to XP-TUSD — a crypto pair that does not exist, and the same class
@@ -1130,10 +1151,40 @@ def _infer_venue(symbol: str) -> str | None:
     for suffix, venue in suffixes.items():
         if upper.endswith(suffix):
             return venue
-    if "-" in upper or "/" in upper:
-        return "crypto_or_fx"
+    # Yahoo's continuous-front-month futures notation (GC=F, CL=F, SI=F, ...).
+    # The exchange category is the venue class. The engine and the
+    # correlation helper mirror this pattern; this is the third copy.
     if upper.endswith("=F"):
         return "futures"
+    # Yahoo's forex notation (XAUUSD=X, EURUSD=X) is FX.
+    if re.match(r"^[A-Z]{6}=X$", upper):
+        return "forex"
+    # Bare 6-character precious-metal / FX symbols. The whitelist is
+    # ISO 4217 metals + G10 currencies; it intentionally does NOT include
+    # any US-equity prefix. Mirroring the engine ``_MARKET_PATTERNS``.
+    if re.match(
+        r"^(?:XAU|XAG|XPT|XPD|EUR|GBP|JPY|CHF|CAD|AUD|NZD|USD)[A-Z]{3}$",
+        upper,
+    ):
+        return "forex"
+    # Dashed / slashed symbols are NOT categorically crypto: a USD quote is
+    # crypto only on a whitelisted base (``_CRYPTO_USD_BASES``), so
+    # ``XAU-USD`` / ``EUR-USD`` / ``GBP-USD`` are forex. Without this guard a
+    # spot-gold pair surfaced as a crypto-or-fx hybrid in the runtime
+    # registry, contradicting the engine classifier that already routes it to
+    # ``forex`` (#1280).
+    if "-" in upper or "/" in upper:
+        base, _, quote = (
+            upper.partition("-") if "-" in upper else upper.partition("/")
+        )
+        if quote in _CRYPTO_QUOTE_ASSETS:
+            return "crypto_or_fx"
+        if quote == "USD" and base in _CRYPTO_USD_BASES:
+            return "crypto_or_fx"
+        # Any other dashed / slashed pair is forex-shaped (e.g. ``XAU-USD``,
+        # ``EUR-USD``, ``GBP-USD``); the per-pair engine classifier decides
+        # ``forex`` vs ``crypto`` vs ``futures`` downstream.
+        return "forex"
     return None
 
 
@@ -1188,8 +1239,34 @@ def _infer_instrument_type(symbol: str, candidate_type: Any = None) -> str:
         return "future"
     if upper.endswith(".FX"):
         return "forex"
+    # Yahoo's continuous-front-month futures notation (GC=F, CL=F, ...).
+    # Mirrors the engine ``_MARKET_PATTERNS`` and the correlation helper.
+    if re.match(r"^[A-Z]{2,5}=F$", upper):
+        return "future"
+    # Yahoo's forex notation (XAUUSD=X, EURUSD=X).
+    if re.match(r"^[A-Z]{6}=X$", upper):
+        return "forex"
+    # Bare 6-character precious-metal / FX symbols (whitelist).
+    if re.match(
+        r"^(?:XAU|XAG|XPT|XPD|EUR|GBP|JPY|CHF|CAD|AUD|NZD|USD)[A-Z]{3}$",
+        upper,
+    ):
+        return "forex"
+    # Dashed / slashed symbols: crypto only when the quote leg is a
+    # stablecoin OR the base is in the USD-whitelist. The whitelist
+    # mirrors ``_canonical_crypto_pair`` in
+    # ``src.tools.symbol_search_tool``. ``XAU-USD`` / ``EUR-USD`` /
+    # ``GBP-USD`` are NOT crypto and resolve as ``forex`` (the per-pair
+    # engine classifier decides the final market downstream).
     if "-" in upper or "/" in upper:
-        return "crypto"
+        base, _, quote = (
+            upper.partition("-") if "-" in upper else upper.partition("/")
+        )
+        if quote in _CRYPTO_QUOTE_ASSETS:
+            return "crypto"
+        if quote == "USD" and base in _CRYPTO_USD_BASES:
+            return "crypto"
+        return "forex"
     if upper.startswith("^"):
         return "index"
     return "listed_security"
