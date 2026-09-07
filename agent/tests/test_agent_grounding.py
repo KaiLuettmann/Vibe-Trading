@@ -3442,3 +3442,100 @@ def test_derived_return_exemption_is_structural_not_phrasal(tmp_path: Path) -> N
         "AAPL.US 从 100.0 涨到 112.4，区间收益率为 15.0%。",
     ):
         assert verdict(answer) is True, f"unanchored/wrong return accepted: {answer}"
+def test_generic_header_table_metric_rows_are_gated(tmp_path: Path) -> None:
+    """#1336 must not be dodgeable by formatting the claim as a generic-header
+    table (| 指标 | 数值 | / | Metric | Value |) with the metric kind in the
+    row instead of prose or a metric-headed table."""
+    ledger = GroundingLedger(run_dir=tmp_path, user_message="回测策略")
+
+    result = ledger.validate_final_answer(
+        "| 指标 | 数值 |\n|---|---:|\n| 年化收益 | 18.2% |\n| 最大回撤 | -9.4% |"
+    )
+
+    assert result.valid is False, result.issues
+    assert [
+        i for i in result.issues if i.get("code") == "analysis_claim_unavailable"
+    ]
+
+    # a comparison marker must not launder an unsupported figure through a
+    # metric-headed table either: prose rejects "夏普比率 > 1.5。" without
+    # evidence, so the table form must be rejected too
+    result = ledger.validate_final_answer("| 夏普比率 |\n|---|---|\n| > 1.5 |")
+    assert result.valid is False, result.issues
+
+    # value-first layout (kind in a later cell) is gated too
+    result = ledger.validate_final_answer(
+        "| 数值 | 指标 |\n|---|---|\n| 18.2% | 年化收益率 |"
+    )
+    assert result.valid is False, result.issues
+    # the bare fragment the prose detector treats as a metric word is gated
+    result = ledger.validate_final_answer(
+        "| 指标 | 数值 |\n|---|---|\n| 年化 | 18.2% |"
+    )
+    assert result.valid is False, result.issues
+    # multiple (label, value) pairs in one row are each gated with their own kind
+    result = ledger.validate_final_answer(
+        "| 指标 | 数值 | 指标 | 数值 |\n|---|---|---|---|\n| 年化波动率 | 18.2% | 最大回撤 | -9.4% |"
+    )
+    assert result.valid is False, result.issues
+    assert len([i for i in result.issues if i.get("code") == "analysis_claim_unavailable"]) == 2
+
+
+def test_generic_header_table_matches_prose_verdicts(tmp_path: Path) -> None:
+    """The generic-header fallback must produce the SAME verdict as prose for
+    the same claim — never looser (formatting dodge) and never stricter.
+
+    Prose without evidence rejects comparison phrasing ("最大回撤小于 -5%
+    触发风控。"), rejects the definitional frame split across the number
+    ("夏普比率通常大于1.0认为较好。"), and rejects a bare claim; with
+    kind-matched evidence all of them pass. Tables must do exactly that.
+    """
+    bare = GroundingLedger(run_dir=tmp_path / "bare", user_message="回测策略")
+    # comparison phrasing rejected without evidence, like prose
+    assert bare.validate_final_answer(
+        "| 指标 | 标准 |\n|---|---|\n| 最大回撤 | 小于 -5% 触发风控 |"
+    ).valid is False
+    # definitional frame split by the number: prose rejects it, tables must not
+    # be looser than prose or the split becomes the new formatting dodge
+    assert bare.validate_final_answer(
+        "| 指标 | 备注 |\n|---|---|\n| 夏普比率 | 通常大于1.0认为较好 |"
+    ).valid is False
+    # a label cell smuggling its own measurement is prose-identical to
+    # "年化收益率为 18.2%" — rejected
+    assert bare.validate_final_answer(
+        "| 指标 | 数值 |\n|---|---|\n| 年化收益率 18.2% | - |"
+    ).valid is False
+
+    backed = GroundingLedger(run_dir=tmp_path / "backed", user_message="回测策略")
+    backed.ingest_tool_result(
+        tool_name="portfolio_risk_xray",
+        arguments={"symbols": ["AAPL"]},
+        result=json.dumps({"annualized_vol": 0.182, "max_drawdown": -0.05}),
+        call_id="x",
+        success=True,
+    )
+    # value-backed row accepted
+    assert backed.validate_final_answer(
+        "| 指标 | 数值 |\n|---|---:|\n| 年化波动率 | 18.2% |"
+    ).valid is True
+    # the same comparison phrasing passes once the figure is kind-backed
+    assert backed.validate_final_answer(
+        "| 指标 | 标准 |\n|---|---|\n| 最大回撤 | 小于 -5% 触发风控 |"
+    ).valid is True
+    # contiguous definitional frame ("通常认为…") is exempt in prose, so in
+    # tables too — the frame regex is the boundary, not the formatting
+    assert backed.validate_final_answer(
+        "| 指标 | 备注 |\n|---|---|\n| 夏普比率 | 通常认为大于 1.0 较好 |"
+    ).valid is True
+    # an annotation column past the value cell is not attributed to the label:
+    # the prose verdict for "年化波动率 18.2%，较去年提升 2%。" with this evidence
+    # is valid, so the table form must not be stricter (parity).
+    assert backed.validate_final_answer(
+        "| 指标 | 数值 | 备注 |\n|---|---|---|\n| 年化波动率 | 18.2% | 较去年提升 2% |"
+    ).valid is True
+    # a FORECAST frame in the label frames the claimed value clause-wide:
+    # prose "预计夏普比率为 1.2。" and the metric-header path (header_forecast
+    # column skip) both accept; the generic path must not be stricter.
+    assert bare.validate_final_answer(
+        "| 指标 | 数值 |\n|---|---|\n| 预计夏普比率 | 1.2 |"
+    ).valid is True
