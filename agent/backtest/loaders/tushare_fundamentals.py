@@ -22,6 +22,14 @@ class SchemaValidationError(DataProviderError):
     """Raised when provider output is missing required columns."""
 
 
+class SubdailyPitError(ValueError):
+    """Raised when fundamentals are requested for an intraday price frame.
+
+    A caller-fixable contract error, not a provider failure — engines let it
+    through verbatim instead of rewording it as an enrichment failure.
+    """
+
+
 @dataclass(frozen=True)
 class ColumnSchema:
     """Machine-readable column metadata for a provider table."""
@@ -277,7 +285,22 @@ def _is_subdaily_index(index: pd.Index) -> bool:
     Returns:
         ``True`` when the frame is finer than one bar per day.
     """
-    stamps = pd.to_datetime(index)
+    if isinstance(index, pd.DatetimeIndex):
+        stamps = index
+    elif pd.api.types.is_object_dtype(index) or pd.api.types.is_string_dtype(index):
+        try:
+            stamps = pd.DatetimeIndex(pd.to_datetime(index))
+        except (TypeError, ValueError):
+            # Not a clock at all. The merge below already fails on such an
+            # index exactly as it did before this guard existed; do not
+            # convert that into a sub-daily rejection with a date-parse
+            # message pinned to it.
+            return False
+    else:
+        # A numeric index is not a clock either: ``pd.to_datetime`` reads it
+        # as nanoseconds since the epoch, which puts every row at a distinct
+        # sub-second time and reports every frame as sub-daily.
+        return False
     if len(stamps) == 0:
         return False
     if (stamps != stamps.normalize()).any():
@@ -331,7 +354,7 @@ def enrich_price_frames_with_fundamentals(
         if not frame.empty and _is_subdaily_index(frame.index)
     ]
     if subdaily_codes and subdaily == "reject":
-        raise ValueError(
+        raise SubdailyPitError(
             "fundamental_fields is PIT-safe for daily frames only; "
             f"{', '.join(sorted(subdaily_codes)[:5])} carry intraday bars, where an "
             "ann_date with no time of day would be visible from the first bar of "

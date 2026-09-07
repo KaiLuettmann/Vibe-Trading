@@ -33,6 +33,7 @@ from backtest.loaders.rsshub_events import (
 )
 from backtest.loaders.tushare_fundamentals import (
     SUBDAILY_POLICIES,
+    SubdailyPitError,
     TushareFundamentalProvider,
     enrich_price_frames_with_fundamentals,
 )
@@ -426,10 +427,11 @@ def _maybe_enrich_fundamentals(
             periods=config.get("fundamental_periods"),
             subdaily=subdaily,
         )
-    except ValueError:
-        # A configuration/contract error (an intraday frame under the default
-        # reject policy) is the caller's to fix and must not be reworded as a
-        # provider failure.
+    except SubdailyPitError:
+        # A contract error (an intraday frame under the default reject policy)
+        # is the caller's to fix and must not be reworded as a provider
+        # failure. Narrow on purpose: a stray ValueError from inside the
+        # enrichment is a failure and keeps the wrapped message.
         raise
     except Exception as exc:
         raise RuntimeError(

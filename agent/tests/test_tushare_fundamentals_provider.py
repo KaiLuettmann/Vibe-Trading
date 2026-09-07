@@ -10,7 +10,9 @@ from backtest.loaders.tushare_fundamentals import (
     SchemaValidationError,
     TushareFundamentalProvider,
     UnknownTableError,
+    _is_subdaily_index,
     enrich_price_frames_with_fundamentals,
+    SubdailyPitError,
 )
 
 
@@ -503,4 +505,72 @@ def test_unknown_subdaily_policy_is_rejected() -> None:
             {"income": ["total_revenue"]},
             as_of="2024-05-31",
             subdaily="whenever",
+        )
+
+
+@pytest.mark.parametrize(
+    ("index", "expected"),
+    [
+        (pd.date_range("2024-01-01", periods=3), False),
+        (pd.date_range("2024-01-01", periods=3, freq="h"), True),
+        (pd.DatetimeIndex([]), False),
+        (pd.Index(["2024-01-01", "2024-01-02"]), False),
+        (pd.Index(["2024-01-01 09:30", "2024-01-01 10:30"]), True),
+        # A numeric index is not a clock. pd.to_datetime reads it as
+        # nanoseconds since the epoch, which puts every row at a distinct
+        # sub-second time and would reject every such frame as "intraday".
+        (pd.RangeIndex(5), False),
+        (pd.Index([0, 1, 2]), False),
+        # An unparseable index is left to fail where it always failed (the
+        # merge), not turned into a sub-daily rejection carrying a
+        # date-parse message.
+        (pd.Index(["a", "b"]), False),
+    ],
+)
+def test_subdaily_detector_only_reasons_about_clocks(
+    index: pd.Index, expected: bool
+) -> None:
+    assert _is_subdaily_index(index) is expected
+
+
+def test_provider_failures_keep_the_wrapped_message(monkeypatch) -> None:
+    """Only the sub-daily contract error passes through the engine verbatim.
+
+    A stray ValueError from inside enrichment is a provider failure and must
+    keep the "Tushare enrichment failed" wrapper that names it as such.
+    """
+    from backtest.engines import base as base_engine
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise ValueError("provider returned nonsense")
+
+    monkeypatch.setattr(
+        base_engine, "TushareFundamentalProvider", lambda: object(), raising=False
+    )
+    monkeypatch.setattr(
+        base_engine, "enrich_price_frames_with_fundamentals", boom, raising=False
+    )
+    frame = _bars(pd.to_datetime(["2024-04-25", "2024-04-26"]))
+
+    with pytest.raises(RuntimeError, match="Tushare enrichment failed"):
+        base_engine._maybe_enrich_fundamentals(
+            {"000001.SZ": frame},
+            {"fundamental_fields": {"income": ["total_revenue"]}, "end_date": "2024-04-30"},
+        )
+
+
+def test_subdaily_contract_error_is_not_reworded(monkeypatch) -> None:
+    from backtest.engines import base as base_engine
+
+    monkeypatch.setattr(
+        base_engine,
+        "TushareFundamentalProvider",
+        lambda: TushareFundamentalProvider(api=_AnnouncementApi()),
+        raising=False,
+    )
+
+    with pytest.raises(SubdailyPitError, match="daily frames only"):
+        base_engine._maybe_enrich_fundamentals(
+            {"000001.SZ": _bars(_INTRADAY_INDEX)},
+            {"fundamental_fields": {"income": ["total_revenue"]}, "end_date": "2024-04-30"},
         )
