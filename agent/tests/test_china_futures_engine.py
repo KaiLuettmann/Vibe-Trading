@@ -251,6 +251,64 @@ class TestMarginRate:
 
 
 # ---------------------------------------------------------------------------
+# Case-insensitive product lookup (this project's documented symbol
+# convention, and Tushare's real ts_code values, use uppercase product
+# codes across every exchange, including SHFE/DCE/INE/GFEX)
+# ---------------------------------------------------------------------------
+
+
+class TestCaseInsensitiveLookup:
+    def test_uppercase_shfe_multiplier(self) -> None:
+        engine = _make_engine()
+        assert engine.get_contract_multiplier("AU2412.SHFE") == 1000
+
+    def test_uppercase_shfe_margin_rate(self) -> None:
+        engine = _make_engine()
+        assert engine.get_margin_rate("AU2412.SHFE") == 0.08
+
+    def test_uppercase_dce_multiplier(self) -> None:
+        # pg's real multiplier (20) differs from the generic default
+        # (10), so a missed case-sensitive lookup can't coincidentally
+        # pass by falling back to the same number.
+        engine = _make_engine()
+        assert engine.get_contract_multiplier("PG2501.DCE") == 20
+
+    def test_uppercase_ine_multiplier(self) -> None:
+        engine = _make_engine()
+        assert engine.get_contract_multiplier("SC2503.INE") == 1000
+
+    def test_uppercase_shfe_fixed_commission(self) -> None:
+        engine = _make_engine()
+        comm = engine.calc_commission_for_symbol("AU2412.SHFE", 3, 500.0, is_open=True)
+        assert comm == pytest.approx(3 * 10.0)
+
+    def test_lowercase_cffex_multiplier(self) -> None:
+        """The opposite direction: CFFEX/ZCE keys are uppercase-only."""
+        engine = _make_engine()
+        assert engine.get_contract_multiplier("if2406.cffex") == 300
+
+    def test_lowercase_zce_multiplier(self) -> None:
+        engine = _make_engine()
+        assert engine.get_contract_multiplier("cf501.zce") == 5
+
+    def test_uppercase_shfe_leverage_from_margin(self) -> None:
+        """__init__ derives leverage from the first code's margin rate."""
+        engine = ChinaFuturesEngine(
+            {"initial_cash": 1_000_000, "codes": ["AU2412.SHFE"]}
+        )
+        assert engine.default_leverage == pytest.approx(1.0 / 0.08)
+
+    def test_lowercase_cffex_price_limit_still_specific(self) -> None:
+        """IF's own 10% limit must still apply lowercase, not the 5%
+        generic default a missed lookup would silently substitute."""
+        engine = _make_engine()
+        # +6%: inside IF's real 10% band, but outside the 5% default a
+        # missed case-sensitive lookup would wrongly fall back to.
+        bar = _make_bar(close=5300.0, pre_close=5000.0)
+        assert engine.can_execute("if2406.cffex", 1, bar) is True
+
+
+# ---------------------------------------------------------------------------
 # Slippage
 # ---------------------------------------------------------------------------
 
