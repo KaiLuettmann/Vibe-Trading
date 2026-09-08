@@ -48,7 +48,7 @@ def test_cross_market_volatility_weights_preserve_missing_price_gaps():
         "BTC-USDT": pd.Series(0.5, index=index),
     }
 
-    adjusted = _load_signal_engine()._vol_adjust(
+    adjusted = _load_signal_engine()()._vol_adjust(
         signals,
         {"AAPL.US": gapped, "BTC-USDT": peer},
     )
