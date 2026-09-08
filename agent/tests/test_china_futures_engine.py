@@ -251,6 +251,44 @@ class TestMarginRate:
 
 
 # ---------------------------------------------------------------------------
+# Product-key casing: every table lookup keys off _extract_product, so the
+# fold lives there and these tests guard the invariant that makes it safe
+# ---------------------------------------------------------------------------
+
+
+class TestProductKeyCasing:
+    def test_extract_folds_to_the_table_spelling(self) -> None:
+        """A symbol reaches the tables in their own spelling, either casing in."""
+        assert _extract_product("AU2412.SHFE") == "au"
+        assert _extract_product("au2412.SHFE") == "au"
+        assert _extract_product("if2406.CFFEX") == "IF"
+        assert _extract_product("IF2406.CFFEX") == "IF"
+
+    def test_unlisted_product_keeps_its_own_letters(self) -> None:
+        """An unknown product still falls through to the generic defaults."""
+        assert _extract_product("XX9999.SHFE") == "XX"
+
+    def test_no_product_collides_when_case_folded(self) -> None:
+        """Folding is only safe while no two keys in a table share an
+        upper-cased spelling; a future 'ao' beside an existing 'AO' would
+        silently merge two different products into one."""
+        for table in (_MULTIPLIER, _MARGIN_RATE, _PRICE_LIMIT, _COMMISSION):
+            folded: dict[str, str] = {}
+            for key in table:
+                first = folded.setdefault(key.upper(), key)
+                assert first == key, f"{first!r} and {key!r} fold together"
+
+    def test_tables_agree_on_how_a_product_is_spelled(self) -> None:
+        """One product, one spelling across all four tables — otherwise the
+        canonical map would send a lookup to the wrong casing."""
+        spelling: dict[str, str] = {}
+        for table in (_MULTIPLIER, _MARGIN_RATE, _PRICE_LIMIT, _COMMISSION):
+            for key in table:
+                first = spelling.setdefault(key.upper(), key)
+                assert first == key, f"product spelled {first!r} and {key!r}"
+
+
+# ---------------------------------------------------------------------------
 # Case-insensitive product lookup (this project's documented symbol
 # convention, and Tushare's real ts_code values, use uppercase product
 # codes across every exchange, including SHFE/DCE/INE/GFEX)
