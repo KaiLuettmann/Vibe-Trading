@@ -77,7 +77,7 @@ class SignalEngine:
         """
         close = df["close"]
         volume = df["volume"]
-        returns = close.pct_change()
+        returns = close.pct_change(fill_method=None)
 
         factors = pd.DataFrame(index=df.index)
         # 动量：过去 N 日累计收益（正向）

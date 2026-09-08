@@ -63,11 +63,11 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     c = df["close"]
     v = df["volume"]
-    ret = c.pct_change()
+    ret = c.pct_change(fill_method=None)
 
     features = pd.DataFrame(index=df.index)
-    features["f_ret_5d"] = c.pct_change(5)
-    features["f_ret_20d"] = c.pct_change(20)
+    features["f_ret_5d"] = c.pct_change(5, fill_method=None)
+    features["f_ret_20d"] = c.pct_change(20, fill_method=None)
     features["f_vol_20d"] = ret.rolling(20).std()
     features["f_ma_ratio"] = c / c.rolling(20).mean()
     features["f_volume_ratio"] = v / v.rolling(20).mean()
@@ -230,8 +230,8 @@ The table below lists all default features. Add or remove features as needed —
 
 | Feature Name | Formula | Meaning |
 |--------|---------|------|
-| ret_5d | `close.pct_change(5)` | Past 5-day return (short-term momentum) |
-| ret_20d | `close.pct_change(20)` | Past 20-day return (medium-term momentum) |
+| ret_5d | `close.pct_change(5, fill_method=None)` | Past 5-day return (short-term momentum) |
+| ret_20d | `close.pct_change(20, fill_method=None)` | Past 20-day return (medium-term momentum) |
 | vol_20d | `returns.rolling(20).std()` | 20-day volatility |
 | rsi_14 | See RSI formula in code | Relative Strength Index (division-by-zero guarded) |
 | ma_ratio | `close / close.rolling(20).mean()` | Degree of deviation from the 20-day moving average |
