@@ -105,6 +105,7 @@ def walk_forward_predict(
     model_type: str = "random_forest",
     window_type: str = "expanding",
     sliding_size: int = 504,
+    prediction_horizon: int = 5,
 ) -> pd.Series:
     """Walk-forward training and prediction to avoid future data leakage.
 
@@ -116,6 +117,7 @@ def walk_forward_predict(
         model_type: One of "random_forest" / "gradient_boosting" / "ridge".
         window_type: "expanding" uses all history; "sliding" uses a fixed lookback.
         sliding_size: Lookback window size when window_type is "sliding".
+        prediction_horizon: Number of bars each target label looks ahead.
 
     Returns:
         Predicted signal series with range [-1.0, 1.0], no NaN values.
@@ -124,12 +126,21 @@ def walk_forward_predict(
     model = None
     scaler = None
 
+    if prediction_horizon < 1:
+        raise ValueError("prediction_horizon must be >= 1")
+
     for i in range(min_train_size, len(features)):
         # Retrain every retrain_freq days
         if model is None or (i - min_train_size) % retrain_freq == 0:
-            start = max(0, i - sliding_size) if window_type == "sliding" else 0
-            X_train = features.iloc[start:i].values
-            y_train = labels.iloc[start:i].values
+            # A label at row t is observable only once t + horizon <= i.
+            train_stop = max(0, i - prediction_horizon + 1)
+            start = (
+                max(0, train_stop - sliding_size)
+                if window_type == "sliding"
+                else 0
+            )
+            X_train = features.iloc[start:train_stop].values
+            y_train = labels.iloc[start:train_stop].values
 
             # Drop rows with NaN
             valid = ~(np.isnan(X_train).any(axis=1) | np.isnan(y_train))
@@ -198,8 +209,16 @@ class SignalEngine:
                 continue
 
             features = build_features(df)
-            labels = (df["close"].pct_change(5).shift(-5) > 0).astype(int)
-            signal = walk_forward_predict(features, labels)
+            prediction_horizon = 5
+            future_returns = (
+                df["close"].shift(-prediction_horizon) / df["close"] - 1
+            )
+            labels = (future_returns > 0).astype(float).where(future_returns.notna())
+            signal = walk_forward_predict(
+                features,
+                labels,
+                prediction_horizon=prediction_horizon,
+            )
             signals[code] = signal
 
         return signals
