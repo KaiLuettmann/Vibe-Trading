@@ -12,7 +12,6 @@ from __future__ import annotations
 import pytest
 
 from backtest.engines._market_hooks import _is_china_futures, code_currency
-from backtest.engines._market_hooks import _is_china_futures
 from backtest.runner import (
     _detect_market,
     _detect_source,
@@ -140,6 +139,26 @@ class TestDetectMarket:
         assert not _is_china_futures("CL2412.NYMEX")
         # And a global futures code with a recognized venue keeps its currency.
         assert code_currency("ES.CME") == "USD"
+
+    def test_dated_global_futures_with_a_venue_suffix_classify_as_futures(self) -> None:
+        # The sibling of #1394 on the global side: the bare dated forms
+        # (CL2412, ESZ4) classified, and the continuous form with a venue
+        # (ES.CME) classified, but the combination fell through to the a_share
+        # default -- so a USD contract was settled in CNY under A-share T+1
+        # rules with no shorting.
+        for code in ("CL2412.NYMEX", "ES2503.CME", "ESZ4.CME", "GCM2025.COMEX"):
+            assert _detect_market(code) == "futures", code
+            assert not _is_china_futures(code), code
+            assert code_currency(code) == "USD", code
+        # The venue decides the currency, not the default.
+        assert code_currency("FDAX2412.EUREX") == "EUR"
+        # A recognized venue is what admits a single-letter product (CBOT
+        # grains); the bare form stays out because nothing proves its class.
+        assert _detect_market("C2412.CBOT") == "futures"
+        assert _detect_market("C2412") == "a_share"
+        # Equities that share the shape must not be captured.
+        assert _detect_market("AAPL.US") == "us_equity"
+        assert _detect_market("TD.TO") == "ca_equity"
 
     def test_concatenated_crypto_pairs_route_to_crypto(self) -> None:
         # Separator-less spot pairs (the Binance spelling) used to fall

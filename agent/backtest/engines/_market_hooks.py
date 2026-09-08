@@ -63,6 +63,19 @@ _MARKET_PATTERNS = [
     (re.compile(r"^[A-Z]{2,4}\d{4}$", re.I), "futures"),
     # Global futures: bare product code with exchange (e.g. ES.CME)
     (re.compile(r"^[A-Z]{2,4}\.(CME|CBOT|NYMEX|COMEX|ICE|EUREX)$", re.I), "futures"),
+    # Global futures: dated contract carrying its venue (ESZ4.CME, CL2412.NYMEX,
+    # GCM2025.COMEX). The bare dated forms above matched, and the continuous
+    # form with a venue matched, but the combination fell through every pattern
+    # to the a_share default below — a USD contract then priced in CNY under
+    # T+1 with no shorting. Same class as #1394 on the global side. The product
+    # width opens to {1,4} here (not on the bare forms) because a recognized
+    # futures venue already proves the class: CBOT lists single-letter grains
+    # (C, S, W, O), which ``^[A-Z]{2,4}\d{4}$`` cannot express without also
+    # claiming bare codes it has no venue to justify.
+    (re.compile(
+        r"^[A-Z]{1,4}(?:[FGHJKMNQUVXZ]\d{1,2}|\d{4})\.(CME|CBOT|NYMEX|COMEX|ICE|EUREX)$",
+        re.I,
+    ), "futures"),
     # Forex pairs: XXX/YYY or XXXXXX.FX
     (re.compile(r"^[A-Z]{3}/[A-Z]{3}$"), "forex"),
     (re.compile(r"^[A-Z]{6}\.FX$"), "forex"),
