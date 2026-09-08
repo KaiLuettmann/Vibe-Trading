@@ -55,7 +55,8 @@ _MARKET_PATTERNS = [
     # they still reach the forex whitelist below.
     (re.compile(r"^[A-Z]{2,}(?:USDT|USDC|BUSD)$", re.I), "crypto"),
     # China futures: product+delivery.exchange (e.g. IF2406.CFFEX, rb2410.SHFE)
-    (re.compile(r"^[A-Za-z]{1,2}\d{3,4}\.(ZCE|DCE|SHFE|INE|CFFEX|GFEX)$", re.I), "futures"),
+    # Tushare suffix spellings (SHF/CZC/CFX/GFE) classify here too.
+    (re.compile(r"^[A-Za-z]{1,2}\d{3,4}\.(ZCE|DCE|SHFE|INE|CFFEX|GFEX|SHF|CZC|CFX|GFE)$", re.I), "futures"),
     # Global futures: product+month-code (e.g. ESZ4, CLF25, GCM2025)
     (re.compile(r"^[A-Z]{2,4}[FGHJKMNQUVXZ]\d{1,2}$", re.I), "futures"),
     # Global futures: product+YYMM (e.g. CL2412, ES2503)
@@ -101,6 +102,10 @@ _MARKET_PATTERNS = [
 ]
 
 _CHINA_EXCHANGES = {"CFFEX", "SHFE", "DCE", "ZCE", "INE", "GFEX"}
+
+# Tushare spells the same exchanges differently (ts_code='CU1811.SHF');
+# normalize to the canonical suffix before any set membership test (#1394).
+_EXCHANGE_ALIASES = {"SHF": "SHFE", "CZC": "ZCE", "CFX": "CFFEX", "GFE": "GFEX"}
 
 # Supported settlement-currency contract per market. A composite backtest holds
 # one shared capital pool, so a code set spanning two of these would add CNY to
@@ -222,7 +227,7 @@ def _is_china_futures(code: str) -> bool:
         # else = False. Without this guard the product-code heuristic below
         # would misclassify global futures whose product letters happen to
         # collide with a CN product (e.g. ``M2412.CBOT`` — US soybean meal).
-        return parts[1] in _CHINA_EXCHANGES
+        return _EXCHANGE_ALIASES.get(parts[1], parts[1]) in _CHINA_EXCHANGES
     # Bare code (no exchange suffix): fall back to product-code heuristic.
     m = re.match(r"([A-Za-z]+)\d+", parts[0])
     if m:

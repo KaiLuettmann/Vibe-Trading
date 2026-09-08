@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from backtest.engines._market_hooks import _is_china_futures, code_currency
+from backtest.engines._market_hooks import _is_china_futures
 from backtest.runner import (
     _detect_market,
     _detect_source,
@@ -122,6 +123,23 @@ class TestDetectMarket:
         assert _detect_market("12345") == "a_share"
         assert _detect_market("123456") == "a_share"
         assert _detect_market("@#$") == "a_share"
+
+    def test_tushare_suffix_china_futures_classify_as_china_futures(self) -> None:
+        # #1394: Tushare spells the exchanges SHF/CZC/CFX/GFE where the
+        # canonical set is SHFE/ZCE/CFFEX/GFEX; without the alias these
+        # contracts fell through to the a_share default or the global engine
+        # (wrong multiplier, wrong currency, wrong band rules).
+        for code in ("CU1811.SHF", "CF501.CZC", "IF2406.CFX", "SC2409.GFE"):
+            assert _detect_market(code) == "futures", code
+            assert code_currency(code) == "CNY", code
+        # Canonical spellings keep working.
+        assert _detect_market("CU2406.SHFE") == "futures"
+        assert code_currency("rb2410.DCE") == "CNY"
+        # A non-China exchange must still not classify as China futures.
+        assert not _is_china_futures("M2412.CBOT")
+        assert not _is_china_futures("CL2412.NYMEX")
+        # And a global futures code with a recognized venue keeps its currency.
+        assert code_currency("ES.CME") == "USD"
 
     def test_concatenated_crypto_pairs_route_to_crypto(self) -> None:
         # Separator-less spot pairs (the Binance spelling) used to fall
