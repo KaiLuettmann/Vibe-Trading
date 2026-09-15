@@ -32,8 +32,11 @@ code count moves, which is what this file is for.
 from __future__ import annotations
 
 import asyncio
+import functools
 import importlib
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -67,7 +70,7 @@ BADGE_ORDER = ("skills", "brokers", "presets", "alphas", "engines", "quantlib")
 # Without that guard the count tests only prove the five READMEs agree with
 # each other, which they did while all five were uniformly wrong — eToro
 # shipped as the 13th connector and the pin stayed at 12.
-EXPECTED_BROKERS = 13
+EXPECTED_BROKERS = 14
 
 
 def _read(name: str) -> str:
@@ -150,6 +153,34 @@ def _quantlib_export_count() -> int:
         if exported:
             total += len(exported)
     return total
+
+
+def _quantlib_module_count() -> int:
+    """Count the `src/quantlib` submodules the badge claims.
+
+    Counted the same way the function total is: a submodule that exports an
+    `__all__` is one module of the library. The badge states both numbers and
+    only the function half was ever guarded, so four modules landed while the
+    badge still said nineteen — the count was right about functions and wrong
+    about modules for as long as nobody read it.
+
+    Returns:
+        Number of `quantlib` submodules exporting `__all__`.
+    """
+    import importlib
+    import pkgutil
+
+    if str(AGENT_DIR) not in sys.path:
+        sys.path.insert(0, str(AGENT_DIR))
+    quantlib = importlib.import_module("src.quantlib")
+
+    return len(
+        [
+            module
+            for module in pkgutil.walk_packages(quantlib.__path__, "src.quantlib.")
+            if getattr(importlib.import_module(module.name), "__all__", None)
+        ]
+    )
 
 
 def _counts() -> dict[str, int]:
@@ -255,6 +286,59 @@ def test_repo_tree_states_the_real_mcp_count(name: str) -> None:
     assert str(len(_mcp_tool_names())) in _numbers(tree[0])
 
 
+# Environment variables that make a credential-gated tool register. The
+# repository-tree line has always carried the keyless registry size (the count a
+# fresh install sees), so those gates are closed while measuring it.
+_CREDENTIAL_GATES = ("FRED_API_KEY", "VIBE_TRADING_IWENCAI_KEY", "QVERIS_API_KEY", "VIBE_TW_STOCK_DB")
+
+
+@functools.lru_cache(maxsize=1)
+def _keyless_agent_tool_count() -> int:
+    """Return the registry size a fresh, credential-free install ships.
+
+    Measured in a child interpreter, not in-process: ``_discover_subclasses``
+    walks ``BaseTool.__subclasses__()`` and caches the result, so a stub tool
+    class defined by any earlier test in the session would be counted too
+    (the full suite measured 107 where a clean process measures 106). Shell
+    tools stay off (as they are for ``serve``), and every credential-gated
+    tool is hidden by clearing its gate, so the number does not depend on
+    which API keys happen to be configured on the machine running the suite.
+
+    Returns:
+        The number of locally registered agent tools.
+    """
+    env = dict(os.environ)
+    for name in _CREDENTIAL_GATES:
+        env.pop(name, None)
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from src.tools import build_registry; print(len(build_registry().tool_names))",
+        ],
+        cwd=AGENT_DIR,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=300,
+    )
+    return int(proc.stdout.strip().splitlines()[-1])
+
+
+@pytest.mark.parametrize("name", READMES)
+def test_repo_tree_states_the_real_agent_tool_count(name: str) -> None:
+    """The repository-tree comment on src/tools/ must state the real registry size.
+
+    This line sat at 97 while the registry shipped 105 — an eight-tool silent
+    drift that no test could see, because nothing measured it.
+    """
+    tree = [line for line in _read(name).splitlines() if re.search(r"│\s+│\s+├── tools/\s+#", line)]
+
+    assert len(tree) == 1, f"{name}: expected one src/tools/ tree line, found {len(tree)}"
+    assert str(_keyless_agent_tool_count()) in _numbers(tree[0])
+
+
 @pytest.mark.parametrize("name", READMES)
 def test_feature_badges_state_the_real_counts(name: str) -> None:
     """Each <sub> badge must carry the count the code ships."""
@@ -268,6 +352,20 @@ def test_feature_badges_state_the_real_counts(name: str) -> None:
         assert str(counts[key]) in _numbers(badge), (
             f"{name}: {key} badge says {badge!r}, code ships {counts[key]}"
         )
+
+
+@pytest.mark.parametrize("name", READMES)
+def test_quantlib_badge_states_both_the_function_and_module_counts(name: str) -> None:
+    """The Quant Library badge carries two numbers; both must be the real ones."""
+    badge = _badges(_read(name))[BADGE_ORDER.index("quantlib")]
+
+    assert _numbers(badge) == {
+        str(_quantlib_export_count()),
+        str(_quantlib_module_count()),
+    }, (
+        f"{name}: quantlib badge says {badge!r}, code ships "
+        f"{_quantlib_export_count()} functions across {_quantlib_module_count()} modules"
+    )
 
 
 @pytest.mark.parametrize("name", READMES)
@@ -448,3 +546,52 @@ def test_all_readmes_agree_with_each_other() -> None:
     for index, key in enumerate(BADGE_ORDER):
         stale = [name for name, badges in per_file.items() if str(counts[key]) not in badges[index]]
         assert not stale, f"{key}: {stale} disagree with the other locales"
+
+
+# ── loader tree line ──────────────────────────────────────────────────────
+
+_LOADER_TREE_RE = re.compile(
+    r"├── loaders/\s*#\s*(?P<count>\d+)\s*\S*[:：]\s*(?P<names>.+)"
+)
+# The six READMEs each carry a repo-tree line that both COUNTS and NAMES the
+# loaders. Nothing pinned it, so it drifted: it read "24 sources" and omitted
+# nobitex, wallex and tickerall while the registry held 27. The count tests
+# only proved the READMEs agreed with each other, and they agreed while all six
+# were wrong — the same failure mode the broker pin above was added for.
+#
+# This asserts against the live registry rather than a constant, so the tree
+# line cannot drift from the code without a test naming the missing source.
+
+
+def _readme_loader_names(text: str) -> list[str]:
+    """Return the loader names a README's tree line lists, in order."""
+    match = _LOADER_TREE_RE.search(text)
+    assert match, "no loaders tree line found"
+    raw = match.group("names")
+    # zh/ja use the ideographic comma; the rest use ASCII.
+    names = [part.strip() for part in re.split(r"[,、]", raw)]
+    return [n for n in names if n]
+
+
+@pytest.mark.parametrize("readme", READMES)
+def test_readme_loader_tree_line_matches_the_registry(readme: str) -> None:
+    """Every README's loaders line must name exactly the registered sources."""
+    from backtest.loaders.registry import LOADER_REGISTRY, _ensure_registered
+
+    _ensure_registered()
+    registered = set(LOADER_REGISTRY)
+
+    text = _read(readme)
+    match = _LOADER_TREE_RE.search(text)
+    assert match, f"{readme}: no loaders tree line"
+    listed = _readme_loader_names(text)
+
+    assert set(listed) == registered, (
+        f"{readme}: tree line names {sorted(set(listed) ^ registered)} "
+        "differently from the loader registry"
+    )
+    assert len(listed) == len(registered), f"{readme}: duplicate name in the tree line"
+    assert int(match.group("count")) == len(registered), (
+        f"{readme}: tree line says {match.group('count')} sources, "
+        f"the registry has {len(registered)}"
+    )
