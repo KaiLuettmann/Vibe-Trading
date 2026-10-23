@@ -125,7 +125,7 @@ _CANONICAL_SYMBOL_RE = re.compile(
     # Every equity suffix the market-data layer routes (backtest.engines.
     # _market_hooks._MARKET_PATTERNS); test_market_identity_parity keeps the
     # two in step, because .L / .VN / .BA each landed there without landing here.
-    r"[A-Z][A-Z0-9&.-]{0,19}\.(?:US|NS|BO|FX|TO|V|BA|L|VN)|"
+    r"[A-Z][A-Z0-9&.-]{0,19}\.(?:US|NS|BO|FX|TO|V|BA|SA|L|VN)|"
     r"[A-Z0-9]{2,15}(?:-|/)(?:USDT|USDC|USD|BTC|ETH)|"
     r"[A-Z]{2,15}(?:" + "|".join(_JOINED_CRYPTO_QUOTE_SUFFIXES) + r")|"
     r"\^[A-Z0-9&.\-]{1,20}|"
@@ -255,6 +255,7 @@ def _infer_venue(symbol: str) -> str | None:
         ".TO": "toronto",
         ".V": "tsx_venture",
         ".BA": "buenos_aires",
+        ".SA": "b3",
         ".L": "lse",
         ".VN": "hose",
     }
@@ -322,6 +323,7 @@ def _infer_currency(symbol: str) -> str | None:
         ".TO": "CAD",
         ".V": "CAD",
         ".BA": "ARS",
+        ".SA": "BRL",
         # The UK loaders admit only a declared GBP / GBp quote and hand back
         # GBP, the same contract as the backtest's _MARKET_CURRENCY.
         ".L": "GBP",
@@ -647,10 +649,32 @@ class _IdentityMixin:
             self._identity_required = True
             self._buffer_output = True
 
+    def _hold_locked(self, existing: IdentityRecord | None) -> bool:
+        """Whether a settled record must survive a non-conclusive resolver step.
+
+        A repeat resolution that fails, is refused or comes back empty carries
+        no evidence about the entity, and replacing the record would erase the
+        contradiction anchor an earlier successful resolution established. A
+        ``conflicting`` record is settled in the same sense: the anchor is the
+        only record of which symbols disagreed.
+
+        Args:
+            existing: The record for this query key, if any.
+
+        Returns:
+            True when the caller must leave the record untouched.
+        """
+        if existing is not None and existing.status in {"locked", "conflicting"}:
+            self.persist()
+            return True
+        return False
+
     def _begin_resolution(self, query: str, call_id: str) -> None:
         """Enter unresolved state before the resolver executes."""
         key = _query_key(query) or f"call:{call_id}"
         existing = self._identities.get(key)
+        if self._hold_locked(existing):
+            return
         self._identities[key] = IdentityRecord(
             query=query,
             status="unresolved",
@@ -668,6 +692,8 @@ class _IdentityMixin:
         query = str(arguments.get("query") or "")
         key = _query_key(query) or f"call:{call_id}"
         existing = self._identities.get(key)
+        if self._hold_locked(existing):
+            return
         self._identities[key] = IdentityRecord(
             query=query,
             status="invalidated",
@@ -690,6 +716,8 @@ class _IdentityMixin:
         version = (existing.version + 1) if existing else 1
 
         if not isinstance(payload, dict) or payload.get("ok") is False:
+            if self._hold_locked(existing):
+                return
             self._identities[key] = IdentityRecord(
                 query=query,
                 status="invalidated",
@@ -705,6 +733,8 @@ class _IdentityMixin:
         constraint_audit = [item.audit_record() for item in relevant_constraints]
         sources = data.get("sources") if isinstance(data.get("sources"), dict) else {}
         if not candidates:
+            if self._hold_locked(existing):
+                return
             # "This entity does not exist" may only be concluded when every
             # source that could answer did answer. Counting two clean sources
             # instead was unreachable for a Chinese query — Yahoo cannot serve
@@ -807,6 +837,27 @@ class _IdentityMixin:
         if existing and existing.status == "locked" and existing.symbol != symbol:
             conflicting = list(candidates)
             conflicting.insert(0, {"symbol": existing.symbol, "source": existing.source})
+            self._identities[key] = IdentityRecord(
+                query=query,
+                status="conflicting",
+                source_tool_call_id=call_id,
+                candidates=conflicting,
+                resolution_constraints=constraint_audit,
+                version=version,
+            )
+            return
+
+        if existing and existing.status == "conflicting":
+            # Re-answering one side of a contradiction is not evidence that
+            # settles it: the same query through the same resolver returns the
+            # same opinion it did a moment ago, so promoting it to ``locked``
+            # would drop the anchor and authorize a symbol the run had already
+            # found contradicted. Only a different query (a new key, e.g. a
+            # disambiguated name) can answer this.
+            conflicting = list(candidates)
+            for item in existing.candidates:
+                if item not in conflicting:
+                    conflicting.append(item)
             self._identities[key] = IdentityRecord(
                 query=query,
                 status="conflicting",
