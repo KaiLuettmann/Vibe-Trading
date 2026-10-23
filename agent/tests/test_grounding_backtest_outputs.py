@@ -32,6 +32,8 @@ import pytest
 
 from src.agent.grounding import GroundingLedger
 from src.agent.grounding.evidence import ARCHIVE_MANIFEST
+from src.agent.grounding.figures import parse_figures_block, scan_figures
+from src.agent.tool_results import _archive_backtest_result
 
 RP = {
     "final_value": 1129817.32,
@@ -265,6 +267,25 @@ def test_a_bare_field_two_runs_hold_is_ambiguous_and_the_correction_names_the_ru
     assert "rp::sortino" in two_runs.correction_prompt(result)
 
 
+def test_a_wrong_call_ref_hints_only_refs_that_then_ground_the_figure(
+    two_runs: GroundingLedger,
+) -> None:
+    """The hint for a backtest's value names the call that wrote it, and each ref it lists validates."""
+    wrong = two_runs.validate_final_answer(
+        _declared("风险平价 Sortino 1.133。", "1.133 | observed | Sortino | bt-ew::sortino")
+    )
+
+    assert not wrong.valid
+    (issue,) = wrong.issues
+    assert issue["reason"] == "not_in_referenced_call"
+    assert issue["field_ref_candidates"]
+    for ref in issue["field_ref_candidates"]:
+        assert ref.startswith("bt-rp::")
+        assert two_runs.validate_final_answer(
+            _declared("风险平价 Sortino 1.133。", f"1.133 | observed | Sortino | {ref}")
+        ).valid, ref
+
+
 def test_one_run_holding_two_drawdowns_is_still_one_source(tmp_path: Path) -> None:
     """Engine and risk X-ray both report a max_drawdown; a ref cannot be ambiguous
     between two numbers the same run wrote."""
@@ -295,6 +316,28 @@ def test_a_table_grounds_only_the_rows_the_model_was_shown(two_runs: GroundingLe
 
     assert two_runs.validate_final_answer(shown).valid
     assert not two_runs.validate_final_answer(unseen).valid
+
+
+def test_model_written_metrics_are_not_backtest_evidence(tmp_path: Path) -> None:
+    ledger = GroundingLedger(run_dir=tmp_path, user_message="回测风险平价")
+    run_dir = tmp_path / "rp"
+    _write_backtest(run_dir, RP)
+    _backtest(ledger, run_dir, "bt-rp")
+    metrics = run_dir / "artifacts" / "metrics.csv"
+    metrics.write_text("sharpe\n0.693563\n", encoding="utf-8")
+    ledger.ingest_tool_result(
+        tool_name="write_file",
+        arguments={"path": str(metrics)},
+        result=json.dumps({"status": "ok", "path": str(metrics)}),
+        call_id="model-write-metrics",
+        success=True,
+    )
+    _backtest(ledger, run_dir, "bt-after-write")
+
+    assert not any(
+        row.get("metric") == "sharpe" and row.get("call_id") == "bt-after-write"
+        for row in ledger._analysis_metrics
+    )
 
 
 def test_a_file_the_model_wrote_is_never_engine_output(tmp_path: Path) -> None:
@@ -342,36 +385,176 @@ def test_a_summary_file_the_run_card_does_not_vouch_for_is_ignored(tmp_path: Pat
     assert vouched.valid, vouched.issues
 
 
-def test_the_active_runs_copy_belongs_to_the_backtest_the_archive_names(tmp_path: Path) -> None:
+def test_stale_active_metrics_are_not_attributed_to_a_detached_backtest(tmp_path: Path) -> None:
+    """The active run's metrics file is an earlier run's until the archive names this one."""
+    ledger = GroundingLedger(run_dir=tmp_path, user_message="回测")
+    _write_backtest(tmp_path, EW)
+    _write_backtest(tmp_path / "rp", RP)
+
+    _backtest(ledger, tmp_path / "rp", "bt-rp")
+
+    recorded = [
+        item["value"] for item in ledger._analysis_metrics if item.get("call_id") == "bt-rp"
+    ]
+    assert RP["sharpe"] in recorded
+    assert EW["sharpe"] not in recorded
+
+
+@pytest.mark.parametrize("detached", [False, True])
+def test_artifact_path_cannot_bypass_current_backtest_source(tmp_path: Path, detached: bool) -> None:
+    active = tmp_path / "active"
+    _write_backtest(active, EW)
+    declared = tmp_path / "detached" if detached else active / "current"
+    _write_backtest(declared, RP)
+    ledger = GroundingLedger(run_dir=active, user_message="Compare backtests")
+    ledger.ingest_tool_result(
+        tool_name="backtest",
+        arguments={"run_dir": str(declared)},
+        result=json.dumps({
+            "status": "ok", "run_dir": str(declared),
+            "artifacts": {"metrics": str(active / "artifacts" / "metrics.csv")},
+        }),
+        call_id="bt-current", success=True,
+    )
+    recorded = [item["value"] for item in ledger._analysis_metrics]
+    assert EW["sharpe"] not in recorded
+    if not detached:
+        assert RP["sharpe"] in recorded
+
+
+@pytest.mark.parametrize("mismatch", ["directory", "call"])
+def test_archive_identity_includes_full_directory_and_call(tmp_path: Path, mismatch: str) -> None:
+    active = tmp_path / "active"
+    _write_backtest(active, EW)
+    declared = tmp_path / "new" / "same-name"
+    old = tmp_path / "old" / "same-name"
+    _write_backtest(declared, RP)
+    (active / ARCHIVE_MANIFEST).write_text(json.dumps({
+        "source_run": declared.name,
+        "source_run_dir": str(old if mismatch == "directory" else declared),
+        "source_call_id": "old-call" if mismatch == "call" else "new-call",
+    }), encoding="utf-8")
+    ledger = GroundingLedger(run_dir=active, user_message="Compare backtests")
+    _backtest(ledger, declared, "new-call")
+    assert not ledger._analysis_metrics
+
+
+def test_real_engine_archive_is_accepted_only_for_its_own_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("VIBE_TRADING_ALLOWED_RUN_ROOTS", str(tmp_path))
+    source, active = tmp_path / "engine", tmp_path / "active"
+    _write_backtest(source, RP)
+    result = json.dumps({"status": "ok", "run_dir": str(source)})
+    assert _archive_backtest_result(result, str(active), source_call_id="bt-engine")
+    ledger = GroundingLedger(run_dir=active, user_message="Compare backtests")
+    _backtest(ledger, source, "bt-stale")
+    assert not ledger._analysis_metrics
+    _backtest(ledger, source, "bt-engine")
+    checked = ledger.validate_final_answer(_declared(
+        "Sharpe 0.694。", "0.694 | observed | Sharpe | bt-engine::sharpe"
+    ))
+    assert checked.valid, checked.issues
+
+
+def test_metrics_symlink_cannot_supply_another_runs_evidence(tmp_path: Path) -> None:
+    active, sibling = tmp_path / "active", tmp_path / "sibling"
+    _write_backtest(sibling, RP)
+    (active / "artifacts").mkdir(parents=True)
+    (active / "artifacts" / "metrics.csv").symlink_to(sibling / "artifacts" / "metrics.csv")
+    ledger = GroundingLedger(run_dir=active, user_message="Compare backtests")
+    _backtest(ledger, active, "bt-active")
+    assert not ledger._analysis_metrics
+
+
+def test_a_detached_backtest_cannot_inherit_the_active_runs_copy(tmp_path: Path) -> None:
+    """A run dir outside the active run has no claim on what that dir holds.
+
+    The tool declares a run_dir elsewhere on disk while the active run dir
+    happens to hold an earlier run's metrics; the manifest names that earlier
+    run, so none of its figures were produced by this call.
+    """
+    active = tmp_path / "active"
+    active.mkdir(parents=True)
+    _write_backtest(active, EW)
+    (active / ARCHIVE_MANIFEST).write_text(
+        json.dumps({"source_run": "an-earlier-run"}), encoding="utf-8"
+    )
+    detached = tmp_path / "detached-bt"
+    _write_backtest(detached, RP)
+    ledger = GroundingLedger(run_dir=active, user_message="回测")
+
+    _backtest(ledger, detached, "bt-detached")
+
+    recorded = [
+        item["value"]
+        for item in ledger._analysis_metrics
+        if item.get("call_id") == "bt-detached"
+    ]
+    assert EW["sharpe"] not in recorded
+    assert EW["total_return"] not in recorded
+
+
+def test_a_detached_backtests_archived_copy_counts_once_vouched_for(tmp_path: Path) -> None:
+    """The loop's archive into the active run counts once the manifest names the source."""
+    active = tmp_path / "active"
+    active.mkdir(parents=True)
+    detached = tmp_path / "detached-bt"
+    _write_backtest(detached, RP)
+    for name in ("metrics.csv", "risk_xray.json", "validation.json"):
+        target = active / "artifacts" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((detached / "artifacts" / name).read_bytes())
+    (active / "run_card.json").write_bytes((detached / "run_card.json").read_bytes())
+    (active / ARCHIVE_MANIFEST).write_text(
+        json.dumps({"source_run": detached.name, "source_run_dir": str(detached.resolve()), "source_call_id": "bt-detached"}), encoding="utf-8"
+    )
+    ledger = GroundingLedger(run_dir=active, user_message="回测")
+
+    _backtest(ledger, detached, "bt-detached")
+
+    recorded = [
+        item["value"]
+        for item in ledger._analysis_metrics
+        if item.get("call_id") == "bt-detached"
+    ]
+    assert RP["sharpe"] in recorded
+
+
+@pytest.mark.parametrize("ref", ["artifacts/metrics.csv", "run_dir/artifacts/metrics.csv"])
+def test_the_active_runs_copy_belongs_to_the_backtest_the_archive_names(
+    tmp_path: Path, ref: str
+) -> None:
     """The loop copies each finished backtest into the active run; a ref to that
-    copy names the backtest it came from, and only once it has come."""
+    copy names the backtest it came from, and only once it has come. ``run_dir/``
+    names that copy too, never the file of the same name in another run."""
     ledger = GroundingLedger(run_dir=tmp_path, user_message="回测")
     _write_backtest(tmp_path / "rp", RP)
     _write_backtest(tmp_path / "ew", EW)
 
-    def archive(source: str) -> None:
+    def archive(source: str, call_id: str) -> None:
         for name in ("metrics.csv", "risk_xray.json", "validation.json"):
             target = tmp_path / "artifacts" / name
             target.parent.mkdir(exist_ok=True)
             target.write_bytes((tmp_path / source / "artifacts" / name).read_bytes())
         (tmp_path / "run_card.json").write_bytes((tmp_path / source / "run_card.json").read_bytes())
-        (tmp_path / ARCHIVE_MANIFEST).write_text(json.dumps({"source_run": source}), encoding="utf-8")
+        (tmp_path / ARCHIVE_MANIFEST).write_text(json.dumps({"source_run": source, "source_run_dir": str((tmp_path / source).resolve()), "source_call_id": call_id}), encoding="utf-8")
 
     def copy_says(value: str) -> bool:
         return ledger.validate_final_answer(
-            _declared(f"Sortino {value}。", f"{value} | observed | Sortino | artifacts/metrics.csv")
+            _declared(f"Sortino {value}。", f"{value} | observed | Sortino | {ref}")
         ).valid
 
-    archive("ew")  # an earlier archive: not rp's output, and not credited to rp
+    archive("ew", "earlier-call")  # an earlier archive: not rp's output, and not credited to rp
     _backtest(ledger, tmp_path / "rp", "bt-rp")
     assert not copy_says("1.133")
     assert not copy_says("1.212")
 
-    archive("rp")
+    archive("rp", "bt-rp-2")
     _backtest(ledger, tmp_path / "rp", "bt-rp-2")
     assert copy_says("1.133")
 
-    archive("ew")
+    archive("ew", "bt-ew")
     _backtest(ledger, tmp_path / "ew", "bt-ew")
     assert copy_says("1.212")
     assert not copy_says("1.133")
@@ -659,3 +842,289 @@ def test_the_correction_asks_for_the_answer_alone(two_runs: GroundingLedger) -> 
 
     assert "do not mention this rejection" in prompt
     assert "in the user's language" in prompt
+
+
+@pytest.mark.parametrize("mode", ["rows", "downsample"])
+def test_structured_artifact_reader_grounds_only_shown_rows(
+    two_runs: GroundingLedger, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    from src.tools.run_artifact_tool import read_run_artifact
+
+    monkeypatch.setenv("VIBE_TRADING_ALLOWED_RUN_ROOTS", str(two_runs.run_dir))
+    result = read_run_artifact(
+        str(two_runs.run_dir / "rp"), "target_positions", format=mode,
+        max_rows=2, columns=["timestamp", "000001.SZ"],
+    )
+    payload = json.loads(result)
+    assert payload["returned_rows"] == 2
+    two_runs.ingest_tool_result(
+        tool_name="read_run_artifact", arguments={"run_dir": str(two_runs.run_dir / "rp")},
+        result=result, call_id="structured-weights", success=True,
+    )
+    observed = [r for r in two_runs._evidence if r.call_id == "structured-weights"]
+    assert {r.field for r in observed} == {"000001.SZ"}
+    assert {r.value for r in observed} == {row[1] for row in payload["rows"]}
+    shown = _declared("初始权重 38.97%。", "38.97% | observed | 权重 | rp/artifacts/target_positions.csv")
+    assert two_runs.validate_final_answer(shown).valid
+    unseen = _declared("未读取权重 29.79%。", "29.79% | observed | 权重 | rp/artifacts/target_positions.csv")
+    assert not two_runs.validate_final_answer(unseen).valid
+
+
+@pytest.mark.parametrize("changed", ["different_bytes", "same_bytes"])
+def test_structured_reader_never_grounds_model_written_table(
+    two_runs: GroundingLedger, monkeypatch: pytest.MonkeyPatch, changed: str
+) -> None:
+    from src.tools.run_artifact_tool import read_run_artifact
+
+    monkeypatch.setenv("VIBE_TRADING_ALLOWED_RUN_ROOTS", str(two_runs.run_dir))
+    table = two_runs.run_dir / "rp" / "artifacts" / "target_positions.csv"
+    if changed == "different_bytes":
+        table.write_text("timestamp,000001.SZ\n2024-01-02,0.4567\n", encoding="utf-8")
+    two_runs.ingest_tool_result(
+        tool_name="write_file", arguments={"path": str(table)},
+        result=json.dumps({"status": "ok", "path": str(table)}),
+        call_id="model-write-table", success=True,
+    )
+    result = read_run_artifact(str(table.parent.parent), "target_positions")
+    two_runs.ingest_tool_result(
+        tool_name="read_run_artifact", arguments={"run_dir": str(table.parent.parent)},
+        result=result, call_id="read-model-table", success=True,
+    )
+    assert not any(r.call_id == "read-model-table" for r in two_runs._evidence)
+
+
+def test_structured_reader_checks_engine_hash_and_scope(
+    two_runs: GroundingLedger, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from src.tools.run_artifact_tool import read_run_artifact
+
+    monkeypatch.setenv("VIBE_TRADING_ALLOWED_RUN_ROOTS", str(two_runs.run_dir))
+    table = two_runs.run_dir / "rp" / "artifacts" / "target_positions.csv"
+    table.write_text("timestamp,000001.SZ\n2024-01-02,0.4567\n", encoding="utf-8")
+    result = read_run_artifact(str(table.parent.parent), "target_positions")
+    two_runs.ingest_tool_result(
+        tool_name="read_run_artifact", arguments={"run_dir": str(table.parent.parent)},
+        result=result, call_id="read-changed", success=True,
+    )
+    assert not any(r.call_id == "read-changed" for r in two_runs._evidence)
+    result = read_run_artifact(str(two_runs.run_dir / "ew"), "target_positions")
+    two_runs.ingest_tool_result(
+        tool_name="read_run_artifact", arguments={"run_dir": str(two_runs.run_dir / "ew")},
+        result=result, call_id="read-ew", success=True,
+    )
+    wrong = _declared("风险平价权重 33.33%。", "33.33% | observed | 权重 | rp/artifacts/target_positions.csv")
+    assert not two_runs.validate_final_answer(wrong).valid
+
+
+def test_external_symlink_is_not_registered_as_engine_table(tmp_path: Path) -> None:
+    _write_backtest(tmp_path / "rp", RP)
+    _write_backtest(tmp_path / "ew", EW)
+    target = tmp_path / "rp" / "artifacts" / "target_positions.csv"
+    target.unlink()
+    target.symlink_to(tmp_path / "ew" / "artifacts" / "target_positions.csv")
+    ledger = GroundingLedger(run_dir=tmp_path, user_message="回测风险平价")
+    _backtest(ledger, tmp_path / "rp", "bt-rp")
+    _read(ledger, target, "read-sibling")
+    assert not any(r.call_id == "read-sibling" for r in ledger._evidence)
+
+
+# ---------------------------------------------------------------------------
+# The active run under a stand-in name (live DeepSeek run, 2026-10-21)
+# ---------------------------------------------------------------------------
+
+# How the engine names a run directory; the model copies it or writes ``run_dir``.
+RUN_NAME = "20261021_195945_86_52d4e2"
+
+
+@pytest.fixture()
+def own_run(tmp_path: Path) -> GroundingLedger:
+    """One backtest written into the active run directory itself, trades read back."""
+    root = tmp_path / RUN_NAME
+    _write_backtest(root, RP)
+    ledger = GroundingLedger(run_dir=root, user_message="回测风险平价")
+    _backtest(ledger, root, "bt-own")
+    _read(ledger, root / "artifacts" / "trades.csv", "read-trades")
+    return ledger
+
+
+_STAND_INS = ["run_dir/artifacts/{file}", f"{RUN_NAME}/artifacts/{{file}}", "run_dir/{file}"]
+
+
+@pytest.mark.parametrize("spelling", ["{file}", "artifacts/{file}", *_STAND_INS])
+def test_the_active_run_named_by_a_stand_in_is_the_file_named_bare(
+    own_run: GroundingLedger, spelling: str
+) -> None:
+    """``run_dir/artifacts/metrics.csv`` grounded nothing while ``metrics.csv`` grounded
+    the same draft: the final value, trade count and trade PnL were all cut. The
+    count sits in a table cell, where an integer is a measurement."""
+    metrics, trades = spelling.format(file="metrics.csv"), spelling.format(file="trades.csv")
+    result = own_run.validate_final_answer(
+        _declared(
+            "期末净值 1,129,817.32，Sortino 1.133，一笔盈利 11,488.33。\n\n"
+            "| 指标 | 数值 |\n|---|---|\n| 交易笔数 | 10 |",
+            f"1,129,817.32 | observed | 期末净值 | {metrics}",
+            f"10 | observed | 交易笔数 | {metrics}",
+            f"1.133 | observed | Sortino | {metrics}",
+            f"11,488.33 | observed | 盈亏 | {trades}",
+        )
+    )
+
+    assert result.valid, result.issues
+
+
+@pytest.mark.parametrize("spelling", ["{file}", *_STAND_INS])
+def test_a_value_the_file_does_not_hold_is_refused_under_every_stand_in(
+    own_run: GroundingLedger, spelling: str
+) -> None:
+    metrics, trades = spelling.format(file="metrics.csv"), spelling.format(file="trades.csv")
+    result = own_run.validate_final_answer(
+        _declared(
+            "期末净值 1,129,900.00，Sortino 1.190，一笔盈利 11,400.00。\n\n"
+            "| 指标 | 数值 |\n|---|---|\n| 交易笔数 | 11 |",
+            f"1,129,900.00 | observed | 期末净值 | {metrics}",
+            f"11 | observed | 交易笔数 | {metrics}",
+            f"1.190 | observed | Sortino | {metrics}",
+            f"11,400.00 | observed | 盈亏 | {trades}",
+        )
+    )
+
+    assert sorted(issue["value"] for issue in result.issues) == [
+        "1,129,900.00", "1.190", "11", "11,400.00",
+    ]
+    assert set(_figure_reasons(result)) == {"not_in_referenced_call"}
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "run_dir/config.json",
+        f"{RUN_NAME}/config.json",
+        "config.json",
+        "run_dir/../outside/artifacts/metrics.csv",
+        f"{RUN_NAME}/../outside/artifacts/metrics.csv",
+        "../outside/artifacts/metrics.csv",
+        "outside/artifacts/metrics.csv",
+    ],
+)
+def test_a_stand_in_reaches_no_model_written_file_and_nothing_outside_the_run(
+    own_run: GroundingLedger, ref: str
+) -> None:
+    """The model's own config.json stays non-evidence, and a sibling directory holding
+    a metrics file of the same name is not the active run."""
+    root = own_run.run_dir
+    config = root / "config.json"
+    config.write_text(json.dumps({"initial_cash": 777777}), encoding="utf-8")
+    own_run.ingest_tool_result(
+        tool_name="write_file",
+        arguments={"path": str(config)},
+        result=json.dumps({"status": "ok", "path": str(config)}),
+        call_id="model-write-config",
+        success=True,
+    )
+    _write_backtest(root.parent / "outside", {"sortino": 1.4567})
+
+    assert own_run._artifact_scope(ref) is None
+    for written in ("777,777.00", "1.4567"):
+        result = own_run.validate_final_answer(
+            _declared(f"数值 {written}。", f"{written} | observed | 数值 | {ref}")
+        )
+        assert not result.valid, (ref, written)
+
+
+# ---------------------------------------------------------------------------
+# A sign written before the currency mark (same live run: "−$1,847.78")
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "values"),
+    [
+        ("Trade three lost −$1,847.78.", [-1847.78]),
+        ("-$3.20", [-3.2]),
+        ("(−$5.00)", [-5.0]),
+        ("PnL: -$3.20", [-3.2]),
+        ("盈亏：−$3.20", [-3.2]),
+        ("+$2.50", [2.5]),
+        ("−HK$1.10", [-1.1]),
+        # A hyphen joining two figures, or a spaced one, is a range, not a sign.
+        ("$10-$20", [10.0, 20.0]),
+        ("$10–$20", [10.0, 20.0]),
+        ("$10 - $20", [10.0, 20.0]),
+        ("a-$5", [5.0]),
+        ("loss of $1,847.78", [1847.78]),
+    ],
+)
+def test_a_sign_before_the_currency_mark_is_the_figures_sign(
+    text: str, values: list[float]
+) -> None:
+    figures = scan_figures(text, parse_figures_block(text))
+
+    assert [figure.value for figure in figures] == values
+    for figure in figures:
+        # The sign is cut with the figure, never left behind by a redaction.
+        written = text[figure.extent[0] : figure.extent[1]]
+        assert written[0] in "+-−" if figure.sign else written[0] not in "+-−", written
+
+
+@pytest.mark.parametrize(
+    ("value", "declared"),
+    [
+        ("−$1,847.78", -1847.78),
+        ("-$3.20", -3.2),
+        ("+$2.50", 2.5),
+        ("−HK$1.10", -1.1),
+        ("$10-$20", None),
+        ("$10 - $20", None),
+        ("x -$5", None),
+    ],
+)
+def test_a_declaration_reads_the_sign_the_prose_reads(value: str, declared: float | None) -> None:
+    """``−$1,847.78 | observed | …`` was ``unparseable_declaration``."""
+    block = parse_figures_block(f"text\n\n```figures\n{value} | observed | trade PnL | trades.csv\n```")
+
+    if declared is None:
+        assert not block.declarations and block.malformed
+    else:
+        assert [item.value for item in block.declarations] == [declared]
+        assert not block.malformed
+
+
+@pytest.mark.parametrize("ref", ["trades.csv", "run_dir/artifacts/trades.csv"])
+def test_a_loss_written_with_its_sign_before_the_mark_grounds(
+    own_run: GroundingLedger, ref: str
+) -> None:
+    """The draft's trade loss was refused or cut although trades.csv holds it."""
+    loss = own_run.validate_final_answer(
+        _declared("一笔亏损 −$17,998.19。", f"−$17,998.19 | observed | 盈亏 | {ref}")
+    )
+    gain = own_run.validate_final_answer(
+        _declared("一笔盈利 +$11,488.33。", f"+$11,488.33 | observed | 盈亏 | {ref}")
+    )
+
+    assert loss.valid, loss.issues
+    assert gain.valid, gain.issues
+
+
+@pytest.mark.parametrize("written", ["+$17,998.19", "$17,998.19"])
+def test_a_loss_written_as_a_gain_is_refused(own_run: GroundingLedger, written: str) -> None:
+    result = own_run.validate_final_answer(
+        _declared(f"一笔交易 {written}。", f"{written} | observed | 盈亏 | trades.csv")
+    )
+
+    assert not result.valid
+    assert _figure_reasons(result) == ["not_in_referenced_call"]
+
+
+def test_a_cut_signed_figure_leaves_no_sign_behind(own_run: GroundingLedger) -> None:
+    draft = _declared(
+        "Sortino 1.133，一笔亏损 −$17,000.00。",
+        "1.133 | observed | Sortino | metrics.csv",
+        "−$17,000.00 | observed | 盈亏 | trades.csv",
+    )
+    validation = own_run.validate_final_answer(draft)
+
+    released = own_run.redacted_release(draft, validation)
+
+    assert released is not None
+    assert "1.133" in released and "17,000.00" not in released
+    assert "−" not in released, released

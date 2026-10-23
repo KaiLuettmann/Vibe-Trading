@@ -52,14 +52,60 @@
 
 > ⚠️ **보안 경고:** X 계정 `VibeTrading_HKU`, Virtuals 프로젝트 `101845`, 토큰 컨트랙트 `0x640BDBF77b6447E8b7DB7894cED84BD1c40571f4`는 모두 Vibe-Trading 공식과 무관합니다. Vibe-Trading은 어떠한 토큰이나 밈코인도 발행하거나 공식적으로 지지한 적이 없습니다. 해당 토큰을 구매하거나 지갑을 연결하거나 어떠한 서명도 하지 마세요. [자세히 보기](SECURITY.md#official-channels--impersonation).
 
+- **2026-10-21** 🚀 **v0.1.18** ([Release notes](https://github.com/HKUDS/Vibe-Trading/releases/tag/v0.1.18), `pip install -U vibe-trading-ai`): Agent runtime을 간소화했습니다. 도구 스키마를 필요할 때 불러오고 전체 결과와 Swarm 관측을 보존하며 압축·중단 호출의 사용량을 기록합니다. 자동 채팅 제목을 유지하고 0.1.17 이후 보안·수치 검증·모의 계좌·패키징 수정을 포함합니다.
+
+- **2026-10-21** 🚀 **v0.1.17 출시**([릴리스 노트](https://github.com/HKUDS/Vibe-Trading/releases/tag/v0.1.17), `pip install -U vibe-trading-ai`): 0.1.16 이후 커밋 638개와 병합된 풀 리퀘스트 228개, 그리고 메인테이너 커밋으로 반영된 풀 리퀘스트 41개이며 기여자는 33명입니다. **이번 릴리스의 핵심은 일별 모의 거래입니다:** Agent와 MCP용 `paper_trade_step` 도구, 그리고 `vibe-trading paper`, REST API, 웹 페이지에서 쓰는 저장형 모의 계좌가 마감된 일봉에 주문이나 전략을 체결하며 브로커에는 절대 닿지 않습니다. 저장된 계좌는 앞으로만 진행합니다([#1939](https://github.com/HKUDS/Vibe-Trading/pull/1939)). **나머지 대부분은 정확성 수정이며 상당수가 같은 형태입니다: 계산할 수 없는 값은 그럴듯한 숫자로 바뀌는 대신 계산할 수 없다고 그대로 알려 줍니다.** 손실 거래가 없는 수익 팩터, 정의되지 않은 상관계수, 상한이 없는 비율은 `null`로 반환되고, IC 관측치가 부족한 팩터는 이유와 함께 건너뜁니다. 누락된 가격이 수익률을 잇지 않으며, 철자가 틀렸거나 선택한 엔진이 쓰지 않는 백테스트 설정은 실행 카드에 경고로 표시됩니다. **새 기능:** 브라질(B3) 시장, 462개에서 478개로 늘어난 Alpha Zoo 팩터, 안내형 채널 설정에 추가된 Slack과 Discord, HTML 또는 비밀번호로 보호할 수 있는 PDF 이메일 보고서, Run Detail·채팅·Swarm의 Token 사용량, `claude-cli` 제공자, 페르시아어와 튀르키예어 추가(UI 11개 언어). **오늘의 수정:** 자금 흐름 대체 경로가 실제 데이터 출처를 밝히고 총 흐름과 주력 흐름을 구분하며, Telegram 설정 절차를 보완했습니다. **릴리스 후 main에 반영(다음 pip 릴리스에 포함):** `mcp>=1.30`으로 `--transport http`의 CVE-2026-59951을 해결했습니다. 사용자 지정 모델 엔드포인트는 연결할 때마다 다시 검증되며 fake-IP 프록시 환경에서도 동작합니다. 수치 검증은 `run_dir/…` 참조와 `−$` 금액을 읽고, 상관 분석은 베이징거래소 `920xxx` 코드를 `.BJ`로 분류합니다([CHANGELOG](CHANGELOG.md)). [@rudycelekli](https://github.com/rudycelekli), [@Shizoqua](https://github.com/Shizoqua), [@he-yufeng](https://github.com/he-yufeng), [@shadowinlife](https://github.com/shadowinlife), [@zeus229](https://github.com/zeus229), [@alexwan02](https://github.com/alexwan02), [@Jackzigen](https://github.com/Jackzigen), [@cgycorey](https://github.com/cgycorey), [@MetaAviator](https://github.com/MetaAviator), [@lorenzozanee](https://github.com/lorenzozanee), [@Mikesad](https://github.com/Mikesad), [@remote-controlled-man](https://github.com/remote-controlled-man), [@Romzhou](https://github.com/Romzhou), [@sambazhu](https://github.com/sambazhu), [@wavebyrd](https://github.com/wavebyrd), [@BHhhh-123](https://github.com/BHhhh-123), [@Bortlesboat](https://github.com/Bortlesboat), [@bygordon130-hub](https://github.com/bygordon130-hub), [@davidalmeida90](https://github.com/davidalmeida90), [@DrDLyuan](https://github.com/DrDLyuan), [@Emad211](https://github.com/Emad211), [@Frank-zhu2000](https://github.com/Frank-zhu2000), [@goatyyc](https://github.com/goatyyc), [@hunters1011-ctrl](https://github.com/hunters1011-ctrl), [@incorpore](https://github.com/incorpore), [@mdb1230](https://github.com/mdb1230), [@mminkus](https://github.com/mminkus), [@passionbull](https://github.com/passionbull), [@rwxyx518-prog](https://github.com/rwxyx518-prog), [@ThreeTima](https://github.com/ThreeTima), [@tomaszkubiak-courses](https://github.com/tomaszkubiak-courses), [@xaritoku](https://github.com/xaritoku)에게 감사드립니다!
+
+- **2026-10-20** 🛠️ **백테스트 진단과 연구 결과의 정확성**: 인식되지 않는 백테스트 설정 키를 경고하고, 정의되지 않은 상관관계를 0 대신 알 수 없음으로 표시하며, 재검증 시 저장된 연율화 계수를 재사용합니다([#1935](https://github.com/HKUDS/Vibe-Trading/pull/1935), [#1933](https://github.com/HKUDS/Vibe-Trading/pull/1933), [#1915](https://github.com/HKUDS/Vibe-Trading/pull/1915)). 팩터 표본 수 검사, 도구 입력 검증, 거래 일지 시장 분류, 숫자 표시와 WeCom 스트리밍 응답도 개선했습니다. 전체 14건의 수정과 남은 제한 사항은 [CHANGELOG](CHANGELOG.md)를 참고하세요.
+
+<details>
+<summary>이전 뉴스</summary>
+
+- **2026-10-19** 🛠️ **금융 계산 오류 9건 수정**: 팩터 감쇠 가중치, A주 시장별 가격 제한과 베이징 종목 코드, SEC 4분기 유량 추정, 이벤트 연구 추정 기간을 수정했습니다. Futu 보유 종목 식별과 작은 MACD·볼린저 밴드 값을 보존하고 음의 고유 분산을 거부합니다. Yahoo 외환 코드에도 통화쌍별 스프레드와 스왑을 적용합니다([#1912](https://github.com/HKUDS/Vibe-Trading/pull/1912), [#1920](https://github.com/HKUDS/Vibe-Trading/pull/1920), [#1930](https://github.com/HKUDS/Vibe-Trading/pull/1930)). 전체 9건과 제한 사항은 [CHANGELOG](CHANGELOG.md)를 참고하세요.
+
+- **2026-10-17** 🛠️ **Token 사용량과 리서치 신뢰성**: 실행 상세·채팅·swarm에서 모델 사용량을 확인할 수 있습니다([#1890](https://github.com/HKUDS/Vibe-Trading/pull/1890)). 리서치와 선택적 백그라운드 작업에 공통 스케줄러를 적용했으며([#1893](https://github.com/HKUDS/Vibe-Trading/pull/1893)), 실거래 스케줄러는 변경하지 않았습니다. 거래 일지 날짜·시간 결합, 근거 파일 경로, 팩터 동률 처리, 메모리 저장 경로, 수치 오류 처리와 채널 진행 표시를 수정했습니다. [CHANGELOG](CHANGELOG.md)를 참조하세요.
+
+- **2026-10-16** 🛠️ **인증 정보 보호와 금융 계산 수정**: 채널·모델 인증 정보 마스킹을 확대하고([#1880](https://github.com/HKUDS/Vibe-Trading/pull/1880)), 로컬 데이터 수정 후 가격 캐시를 갱신하며([#1879](https://github.com/HKUDS/Vibe-Trading/pull/1879)), 포지션 전환 수수료 중복 계산을 수정했습니다([#1891](https://github.com/HKUDS/Vibe-Trading/pull/1891)). 유럽식 거래 금액, 엄격한 JSON, 0·음수 비교, 보유 기간, 최소 비중, 평평한 고점·저점 판정, 보고서 경로도 수정했습니다. [CHANGELOG](CHANGELOG.md)를 참조하세요.
+
+- **2026-10-15** 🛠️ **모델 비용 관리와 리서치 신뢰성**: 실거래 러너는 판단마다 독립된 세션을 사용하며, 판단 주기와 재시작 후에도 유지되는 일일 사용량 한도를 설정할 수 있습니다([#1854](https://github.com/HKUDS/Vibe-Trading/issues/1854)). 가벼운 백테스트 미리보기와 전체 거래 내역을 함께 제공합니다([#1853](https://github.com/HKUDS/Vibe-Trading/pull/1853), [#1865](https://github.com/HKUDS/Vibe-Trading/pull/1865)). 백분율 근거 계산, 복사한 실행 기록의 중복 제거, 스윙 신호 시점, 암호화폐 라우팅 및 인증 정보 마스킹을 수정했습니다. 범위와 제한은 [CHANGELOG](CHANGELOG.md)를 참고하세요.
+
+- **2026-10-14** 🛠️ **백테스트·검색·문서 읽기 수정**: 위험 지표와 자산 가치 내보내기에 첫 봉의 손익을 반영합니다([#1844](https://github.com/HKUDS/Vibe-Trading/pull/1844)). 세션 검색은 세션 중복을 제거하고 제목을 유지하며 일치한 부분의 문맥을 표시합니다([#1827](https://github.com/HKUDS/Vibe-Trading/pull/1827), [#1834](https://github.com/HKUDS/Vibe-Trading/pull/1834)). PDF/Office 내용 추출을 개선하고 확인할 수 없는 근거 참조를 거부하며, 금융 계산 입력 검증과 인증 정보 마스킹을 강화했습니다.
+
+- **2026-10-13** 🧩 **포트폴리오 가져오기, 전략 적응 및 리서치 도구**: extraETF 보유 내역을 읽기 전용으로 가져와 날짜가 명시된 EUR 평가와 자산 배분 제안을 지원하며, 적응한 하위 전략은 자체 백테스트 근거를 사용합니다([#1170](https://github.com/HKUDS/Vibe-Trading/issues/1170), [#1149](https://github.com/HKUDS/Vibe-Trading/issues/1149)). 연결 테스트를 거친 사용자 지정 모델, Pixel Office 공유 수동 작업 보드, 페르시아어·튀르키예어 UI, mStock 읽기 전용 조회와 Gildata 리서치 데이터를 추가했습니다.
+  결제 통화별 회계 처리, Futu 시장 선택과 취득 원가, 홍콩 주식의 종목별 거래 단위, 저장된 검증 설정과 실행 진행 표시를 수정했습니다. 명시적 수치 검증 규칙과 에이전트 루프 분리도 완료했습니다. mStock은 포트폴리오 통합 집계에서 제외되며 Robinhood 옵션 주문 실행은 아직 지원하지 않습니다. 범위와 제약은 [CHANGELOG](CHANGELOG.md)를 참고하세요.
+
+- **2026-10-12** 🧮 **리서치와 백테스트 업데이트**: 최초 체결, 청산 시 성과 귀속, 낙폭 지속 기간, 가치평가 허용 오차, 팩터 IC의 SEC 공시 반영 시점을 수정했습니다([#1780](https://github.com/HKUDS/Vibe-Trading/pull/1780)–[#1794](https://github.com/HKUDS/Vibe-Trading/pull/1794)). 기본적·가치평가 팩터 13개, 브라질 데이터와 백테스트, 선택적으로 활성화하는 ZimaOS 템플릿, Feishu 실행 진행 표시를 추가했습니다. 범위와 제약은 [CHANGELOG](CHANGELOG.md)를 참고하세요.
+
+- **2026-10-11** 🛠️ **우선순위 수정 5건**: 계산에 쓰인 각 데이터 값에 근거를 요구하고 미지원 실거래 옵션 주문을 차단합니다. 오프라인 벤치마크는 지정 소스를 유지하며, 거래 기록은 손익 0 청산을 구분하고 Codex 도구는 선택 인수를 보존합니다([#1622](https://github.com/HKUDS/Vibe-Trading/issues/1622), [#1779](https://github.com/HKUDS/Vibe-Trading/pull/1779), [#1781](https://github.com/HKUDS/Vibe-Trading/pull/1781), [#1785](https://github.com/HKUDS/Vibe-Trading/pull/1785)).
+
+- **2026-10-10** 🛠️ **Slack/Discord 설정과 재현 가능한 연구**: 번역된 양식에서 봇 인증 정보를 검증하며 테스트는 변경 사항을 저장하지 않습니다([#1764](https://github.com/HKUDS/Vibe-Trading/pull/1764), [#1777](https://github.com/HKUDS/Vibe-Trading/pull/1777)). 포트폴리오 연구는 불변 스냅샷을 재사용하고 Web에서 인증 정보와 계좌 번호를 제거한 JSON을 내보냅니다([#1769](https://github.com/HKUDS/Vibe-Trading/pull/1769)). 지표는 조회 날짜와 입력 지문을 보고하며 손상된 세션 기록은 원본을 다시 쓰지 않고 복구합니다. 메모리 검색, 인증 정보 마스킹, 거래 내역 식별도 수정했습니다. [CHANGELOG](CHANGELOG.md)를 참조하세요.
+
+- **2026-10-09** 🛠️ **채널 설정 및 백테스트 수정**: 재연결 없는 설정 업데이트에서 URL 인증 정보와 WeChat 인증 후 서버 주소를 보존하며, 저장·재시작 결과를 웹에서 9개 언어로 표시합니다 ([#1737](https://github.com/HKUDS/Vibe-Trading/pull/1737), [#1742](https://github.com/HKUDS/Vibe-Trading/pull/1742), [#1744](https://github.com/HKUDS/Vibe-Trading/pull/1744)). 여러 시장의 옵션 변동성은 각 시점까지 알려진 타임스탬프만 사용하고, 낙폭은 초기 자금을 반영합니다. 암호화폐·귀금속 데이터 경로, 홍콩 주식 중복 판별, 캐시 복구, 과학적 표기 금액 및 누락된 자산 값 검증을 수정했습니다. 기본 A주 경로에서 mootdx를 제외했습니다. 13개 PR은 [CHANGELOG](CHANGELOG.md)를 참조하세요.
+
+- **2026-10-08** 🔐 **PDF 보고서 비밀번호 보호와 증권사 조회 수정**: 예약 이메일 PDF에 AES-256 보호를 선택할 수 있으며 Web, CLI 및 에이전트 확인에 반영됩니다. 비밀번호는 비공개 채널 설정에만 저장합니다([#1709](https://github.com/HKUDS/Vibe-Trading/pull/1709)). KIS는 세 거래 경로를 조회하고 명시적으로 만료된 토큰을 한 번만 갱신하며 불완전한 조회는 오류로 처리합니다([#1726](https://github.com/HKUDS/Vibe-Trading/pull/1726)). 설명 뒤의 전체 파생 수식을 보존하고 증거 검증을 유지합니다([#1728](https://github.com/HKUDS/Vibe-Trading/pull/1728)).
+
+- **2026-10-07** 🛠️ **리서치 연속성과 위험 지표 수정**: 실행 상태를 시스템 프롬프트 밖으로 옮겨 안정적인 접두부를 유지합니다([#1708](https://github.com/HKUDS/Vibe-Trading/pull/1708)). 시장 간 날짜 정렬, 누락 가격 주변의 수익률, 전체 표본을 사용하는 옵션 Sortino 계산을 수정했습니다([#1710](https://github.com/HKUDS/Vibe-Trading/pull/1710), [#1717](https://github.com/HKUDS/Vibe-Trading/pull/1717), [#1727](https://github.com/HKUDS/Vibe-Trading/pull/1727)). 데이터 로더 테스트는 공통 OHLCV 계약을 사용하며 신용 평가, 스타일 노출, 순차 검증 및 감사 진단도 개선했습니다.
+
+- **2026-10-06** 🛠️ **실거래 제어와 보고서 수정**: 실거래 러너 중지는 현재 분석을 취소하고 스케줄러 종료를 기다리며 시작 중 취소와 API 종료도 처리합니다. 상태 시간의 단위도 수정했습니다([#1704](https://github.com/HKUDS/Vibe-Trading/pull/1704)). 긴급 취소·청산은 잘못된 레코드를 건너뛰고 나머지 주문과 포지션을 계속 처리합니다([#1703](https://github.com/HKUDS/Vibe-Trading/pull/1703)). 증권사별 일정을 따로 저장하고 동시 쓰기와 부분 쓰기를 처리합니다. 미국 주식 단축 거래일의 조기 폐장 시간을 반영합니다([#1706](https://github.com/HKUDS/Vibe-Trading/pull/1706)). 보고서 수정은 검증된 수치를 유지하며 생략된 오류가 검증을 통과한 것처럼 안내하지 않습니다([#1702](https://github.com/HKUDS/Vibe-Trading/pull/1702)).
+
+- **2026-10-05** 🛠️ **리서치 입력과 계산 수정**: 더 긴 리서치 입력을 지원하며 한도를 넘으면 현재 언어로 줄이도록 안내합니다([#1701](https://github.com/HKUDS/Vibe-Trading/pull/1701)). Sortino는 전체 기간의 하방 편차를 사용하고 그룹 검증은 겹치는 레이블을 제외합니다. 공분산 가중치, Wilder 초기 평균을 사용하는 RSI, 파일명으로 메모리 삭제도 개선했습니다. 잘못된 호출 별칭을 인용하면 수정할 수 있도록 실제 필드 참조를 안내하며 수치 검증 규칙은 유지합니다([#1638](https://github.com/HKUDS/Vibe-Trading/pull/1638)).
+
+- **2026-10-04** 🛠️ **예약 보고서와 리서치 흐름 개선**: 예약 작업을 편집하고 설정된 수신 대상을 선택할 수 있습니다. 이메일 보고서는 HTML 또는 PDF 첨부를 지원합니다([#1649](https://github.com/HKUDS/Vibe-Trading/pull/1649), [#1680](https://github.com/HKUDS/Vibe-Trading/pull/1680)).
+  백테스트에 구조화된 요약과 결과 파일 페이지 읽기를 추가했습니다([#1646](https://github.com/HKUDS/Vibe-Trading/pull/1646), [#1647](https://github.com/HKUDS/Vibe-Trading/pull/1647)). 메모리 검색 미리보기, 내보내기 경로 안내, 매크로 데이터 잘림 표시, 월봉 리스크, 포지션 반전과 현금화 후 재진입의 회전율, IV 정확도, VaR 결측 구간, VCS 설치 업데이트, Robinhood의 미지원 옵션 주문 차단도 수정했습니다.
+
+- **2026-10-03** 🛠️ **리서치·보고서·데이터 신뢰성 개선**: 중국어·일본어·한국어 세션 검색, 채널 설정, 증권사 보유 자산 평가와 파일 쓰기에서 일상적인 사용을 막던 문제를 수정했습니다. PDF 전달 시 CJK 글꼴을 포함하고, Swarm은 프리셋 입력을 검증하며 작업별 산출물을 분리하고, 재사용한 도구 결과는 컨텍스트 압축 후에도 유지됩니다([#1683](https://github.com/HKUDS/Vibe-Trading/pull/1683), [#1455](https://github.com/HKUDS/Vibe-Trading/pull/1455), [#1635](https://github.com/HKUDS/Vibe-Trading/pull/1635)). 백테스트의 가격 조정 기준을 통일하고 로컬 캐시는 데이터 소스를 구분하며, 단일 자산 한도와 주간·월간 위험 계산은 지정된 설정을 따릅니다. 감사는 손실 부호를 유지하고 수치 검증은 이번 엔진 출력과 정확한 목록 참조를 사용하며, Stooq은 거부 후 대기 시간이 지나면 재시도합니다([#1684](https://github.com/HKUDS/Vibe-Trading/pull/1684), [#1650](https://github.com/HKUDS/Vibe-Trading/pull/1650), [#1685](https://github.com/HKUDS/Vibe-Trading/pull/1685), [#1640](https://github.com/HKUDS/Vibe-Trading/pull/1640)).
+
+- **2026-10-02** 🛠️ **백테스트와 보고서 검증 수정**: 전략 파일 쓰기가 충돌 없이 모델 출처를 유지하고 ([#1673](https://github.com/HKUDS/Vibe-Trading/pull/1673)), 몬테카를로 낙폭과 Sharpe 계산에 초기 자본을 포함합니다 ([#1664](https://github.com/HKUDS/Vibe-Trading/pull/1664)). 보고서 감사는 회계식 괄호 음수와 단위를 보존하며 ([#1663](https://github.com/HKUDS/Vibe-Trading/pull/1663)), 수치 검증 산출물은 발동된 선언형 검사를 기록합니다 ([#1661](https://github.com/HKUDS/Vibe-Trading/pull/1661)). 공개 데이터 소스 상태 보고서에는 민감 정보를 제거한 실패 이유를 담고 ([#1643](https://github.com/HKUDS/Vibe-Trading/pull/1643)), 인도네시아어 도구 문서를 레지스트리에 맞췄습니다 ([#1671](https://github.com/HKUDS/Vibe-Trading/pull/1671)).
+
+- **2026-10-01** ✅ **데이터 정확성과 재현 가능한 백테스트**: A주 수정주가 변환은 모호한 단일 봉 경계 사례를 거부합니다 ([#1551](https://github.com/HKUDS/Vibe-Trading/pull/1551)). 남향 자금의 Eastmoney 금액은 백만 HKD 단위에서 환산하고 실패 응답을 빈 데이터로 처리하지 않습니다 ([#1486](https://github.com/HKUDS/Vibe-Trading/pull/1486)). 북향 자금 대체 소스는 2024-08-19 이후 거래대금과 순유입을 구분합니다 ([#1484](https://github.com/HKUDS/Vibe-Trading/pull/1484)). Binance의 미평가 포지션만 불완전으로 표시하며 다른 브로커에는 영향을 주지 않습니다 ([#1505](https://github.com/HKUDS/Vibe-Trading/pull/1505)). 실행 카드는 모델 출처를 기록하고 학습 기준일이 불명확하거나 테스트 기간 밖이면 경고합니다 ([#1618](https://github.com/HKUDS/Vibe-Trading/pull/1618)).
+
+- **2026-09-30** 🛠️ **Web UI의 Feishu 설정, 당일 가격을 읽던 모멘텀 팩터, 손실 거래가 없는 백테스트의 수익 팩터**: Feishu가 가이드형 채널 설정에 추가되어 독립 연결 테스트를 제공하고, 핫 리로드 시 이전 WebSocket을 닫습니다([#1572](https://github.com/HKUDS/Vibe-Trading/pull/1572)). `academic_carhart_mom`은 12개월 수익률에서 1개월 수익률을 빼서 당일 종가에 따라 움직였으나, 이제 12개월 전부터 1개월 전까지의 수익률입니다([#1578](https://github.com/HKUDS/Vibe-Trading/pull/1578)). 손실 거래가 없는 실행은 수익 팩터를 최하위로 정렬되게 만드는 0.0 대신 정의되지 않음으로 보고합니다([#1602](https://github.com/HKUDS/Vibe-Trading/pull/1602)). Stooq의 봇 차단 페이지를 감지하면 로그만 남기는 것이 아니라 해당 프로세스의 이후 요청을 모두 중단하고([#1637](https://github.com/HKUDS/Vibe-Trading/pull/1637)), MCP 도구 결과는 최대 네 번이 아니라 한 번만 에이전트에 전달되며([#1634](https://github.com/HKUDS/Vibe-Trading/pull/1634)), `loop.py`에서 첫 번째 모듈이 분리되었습니다([#1636](https://github.com/HKUDS/Vibe-Trading/pull/1636)).
+
 - **2026-09-29** 🚀 **v0.1.16 출시** ([릴리스 노트](https://github.com/HKUDS/Vibe-Trading/releases/tag/v0.1.16), `pip install -U vibe-trading-ai`): 0.1.15 이후 커밋 492개, 병합된 풀 리퀘스트 116개, 기여자 16명. **이번 사이클의 주제는 모든 숫자가 자신의 출처를 보여줄 수 있는 것입니다.** 그라운딩 게이트는 더 이상 숫자 주변의 단어로 그 의미를 추측하지 않습니다. 모델이 각 숫자의 역할(observed / derived / proposed / cited / count)을 선언하면 게이트가 해당 세션의 도구 결과와 대조하고, 검증되지 않은 숫자는 답변 전체를 거부하는 대신 그 숫자만 삭제합니다. 백테스트 자체의 출력(샤프 비율뿐 아니라 소르티노, 회전율, 비중, 몬테카를로 p값)이 그에 관한 보고서의 근거가 되며, 런 카드는 저장된 CSV와 일치하는 지표만 인용합니다. 긴 리서치 작업은 가져온 데이터를 더 이상 잃지 않습니다. 컨텍스트 압축이 고정된 40K 추정 대신 각 모델의 실제 컨텍스트 윈도우를 따릅니다. 결측 데이터 점검은 알파 59개로 더 확대되었습니다. **사용자 제보로 수정:** 실패한 실행도 단계를 보존하고 중단 메시지에 아무것도 얻지 못한 호출이 표시됩니다. `read_file`이 읽을 수 있는 위치를 알려 주어, 모델이 no-progress로 중단될 때까지 경로를 추측하지 않습니다. Codex에서는 실행 중 지시가 시스템 프롬프트를 대체하지 않고, 추론이 턴 사이에 유지되며, 기본 모델은 `gpt-6-sol`입니다. `get_market_data`는 접미사 없는 미국 주식 티커에 빈 데이터 대신 `AAPL.US`를 요청합니다. **신규:** 아르헨티나(BYMA), 주봉과 월봉, 인도네시아어, Gildata, OpenCode, 이메일과 WebSocket 채널, Web UI에서의 메신저 채널 설정, 그리고 한국투자증권(KIS), 업비트, 토스증권, Scalable Capital 커넥터(총 18개 브로커). [@Shizoqua](https://github.com/Shizoqua), [@zeus229](https://github.com/zeus229), [@cgycorey](https://github.com/cgycorey), [@shadowinlife](https://github.com/shadowinlife), [@lorenzozanee](https://github.com/lorenzozanee), [@he-yufeng](https://github.com/he-yufeng), [@chiww](https://github.com/chiww), [@as950118](https://github.com/as950118), [@woshi77777stars](https://github.com/woshi77777stars), [@Yoruxyv](https://github.com/Yoruxyv), [@sambazhu](https://github.com/sambazhu), [@0xouzm](https://github.com/0xouzm), [@tingkk](https://github.com/tingkk), [@tonydo](https://github.com/tonydo), [@alanwilhelm](https://github.com/alanwilhelm), [@modelpath-dev](https://github.com/modelpath-dev)에게 감사드립니다!
 
 - **2026-09-28** 🛠️ **데이터 소스 상태와 브로커 기능 공개**: 인증 정보 없이 시간 제한을 적용한 정기 검사로 공개 소스의 연결 장애와 데이터 이상을 보고합니다([#1627](https://github.com/HKUDS/Vibe-Trading/pull/1627)). BaoStock 통신 제한 시간과 동시 세션 직렬화를 추가하고([#1615](https://github.com/HKUDS/Vibe-Trading/pull/1615)), Copilot 자격 증명 조회 캐시에 짧은 만료 시간을 적용했습니다([#1619](https://github.com/HKUDS/Vibe-Trading/pull/1619)). 자동 생성 브로커 표는 프로필별 모의·실거래 권한을 구분하며, 선언된 기능과 실제 검증을 구별합니다([#1629](https://github.com/HKUDS/Vibe-Trading/pull/1629)). **수치 검증 및 MT5 추가 수정**: 명시된 종목과 정확한 필드 참조를 보존하고 현지 숫자 구분에도 기존 허용 오차를 유지합니다([#1584](https://github.com/HKUDS/Vibe-Trading/pull/1584), [#1586](https://github.com/HKUDS/Vibe-Trading/pull/1586), [#1588](https://github.com/HKUDS/Vibe-Trading/pull/1588)). 텍스트 전용 수정 횟수를 제한합니다([#1600](https://github.com/HKUDS/Vibe-Trading/pull/1600)). MT5는 지정 터미널에서 검색하며 모호한 브로커 별칭을 거부합니다. 백테스트 샌드박스에는 검증된 연결 설정만 전달합니다([#1597](https://github.com/HKUDS/Vibe-Trading/pull/1597), [#1598](https://github.com/HKUDS/Vibe-Trading/pull/1598)).
 
 - **2026-09-27** 🛠️ **검증 가능한 실행 카드와 연구 흐름 개선**: JSON, Markdown, 실행 상세 화면에 해시 기반 백테스트 실행 기록과 검증된 지표 CSV 참조를 표시합니다([#1612](https://github.com/HKUDS/Vibe-Trading/pull/1612)). GTJA 고점·저점 경과 일수와 동률 처리를 수정하고([#1604](https://github.com/HKUDS/Vibe-Trading/pull/1604)), 인도 시장 숏 청산은 매수 방향의 가격 제한을 확인합니다([#1608](https://github.com/HKUDS/Vibe-Trading/pull/1608)). 자격 증명 문자열을 노출하지 않고 토큰 사용량을 유지하며([#1606](https://github.com/HKUDS/Vibe-Trading/pull/1606)), 잘못된 MCP 스키마의 객체 속성을 복구합니다([#1607](https://github.com/HKUDS/Vibe-Trading/pull/1607)). 즉시 주문 목표 검사는 연구 질문을 허용하고([#1605](https://github.com/HKUDS/Vibe-Trading/pull/1605)), 설정 문서에 기본 경로가 OpenRouter임을 명시했습니다([#1609](https://github.com/HKUDS/Vibe-Trading/issues/1609)).
-
-<details>
-<summary>이전 뉴스</summary>
 
 - **2026-09-26** 🛠️ **지표 계산과 거래 한도 개선**: 기술적 지표는 관측 날짜를 유지하고 대화 압축으로 사라진 결과를 재사용할 수 있습니다([#1590](https://github.com/HKUDS/Vibe-Trading/pull/1590), [#1601](https://github.com/HKUDS/Vibe-Trading/pull/1601)). Qlib158의 다섯 WVMA 기간 모두 분자에 절대 수익률을 사용하며([#1594](https://github.com/HKUDS/Vibe-Trading/pull/1594)), Benford 검사는 수치 경계에서도 올바른 첫 자릿수를 유지합니다([#1591](https://github.com/HKUDS/Vibe-Trading/pull/1591)). 명시적으로 0으로 설정한 익스포저 한도는 그대로 유지되고([#1593](https://github.com/HKUDS/Vibe-Trading/pull/1593)), Dhan 모의 주문은 입력 정밀도를 반올림으로 잃지 않으면서 소수 및 잘못된 수량을 거부합니다([#1595](https://github.com/HKUDS/Vibe-Trading/pull/1595)). 잘못된 선택적 숫자 환경 변수는 기본값으로 돌아가며 명시적 설정의 제약은 계속 적용됩니다([#1592](https://github.com/HKUDS/Vibe-Trading/pull/1592)). 런타임 트리거의 필드 기본값과 하위 클래스 팩터리 동작도 수정했습니다([#1599](https://github.com/HKUDS/Vibe-Trading/pull/1599)).
 
@@ -353,7 +399,7 @@ Vibe-Trading은 금융 질문을 실행 가능한 분석으로 바꾸는 오픈�
 | **애널리스트 팀 실행하기** | 투자, 퀀트, 크립토, 매크로, 리스크 워크플로를 위한 멀티 에이전트 리서치 리뷰. |
 | **리서치를 IM 채널에 연결하기** | WebSocket, Telegram, Slack, Discord, Matrix, WhatsApp, Signal, QQ/NapCat, WeChat/WeCom, Feishu/Lark, DingTalk, Teams, email, Mochat에서 같은 session runtime을 CLI, REST, Web UI로 관리. |
 | **사용 가능한 artifacts 만들기** | 리포트, TradingView Pine Script, TDX, MetaTrader 5, MCP tools, 이후 리서치 세션. |
-| **사전 빌드된 alpha zoo 벤치** | 462개의 alpha 인자(Qlib 158 + Kakushadze 101 + GTJA 191 + academic + PIT-safe fundamental)에 대해 한 줄 CLI로 IC + IR + alive/reversed/dead 분류 수행 |
+| **사전 빌드된 alpha zoo 벤치** | 478개의 alpha 인자(Qlib 158 + Kakushadze 101 + GTJA 191 + academic + PIT-safe fundamental)에 대해 한 줄 CLI로 IC + IR + alive/reversed/dead 분류 수행 |
 | **상관관계 국면 포착하기** | `/correlation` 화면의 엣지 밀도 + 히스테리시스 타임라인으로 시장이 한 덩어리로 움직이기 시작하는 시점을 보여줍니다 — 시그널이 아니라 서술적 리스크 컨텍스트입니다. |
 
 ---
@@ -437,11 +483,12 @@ vibe-trading connector install /tmp/my-broker
 
 ## 📡 데이터 소스 & 스마트 폴백
 
-`get_market_data` 한 번의 호출, **28개 시장 데이터 소스**(그중 **QVeris**는 선택형 유료 마켓플레이스). `source: "auto"`로 설정하면 로더가 심볼에 따라 소스를 고르고, 시장별 체인을 **IP 차단 위험** 순으로 따라갑니다: 절대 차단되지 않는 공개 소스를 먼저, 속도 제한 / 키 기반 소스를 마지막에 둡니다. 설정 불필요, 단일 장애 지점 없음.
+`get_market_data` 한 번의 호출, **29개 시장 데이터 소스**(그중 **QVeris**는 선택형 유료 마켓플레이스). `source: "auto"`로 설정하면 로더가 심볼에 따라 소스를 고르고, 시장별 체인을 **IP 차단 위험** 순으로 따라갑니다: 절대 차단되지 않는 공개 소스를 먼저, 속도 제한 / 키 기반 소스를 마지막에 둡니다. 설정 불필요, 단일 장애 지점 없음.
 
 | Source | Markets | Auth | Role |
 |--------|---------|------|------|
-| `tencent` · `mootdx` | A-share + HK | none | never IP-banned (`mootdx` = 通达信 TCP) |
+| `tencent` | A-share + HK | none | never IP-banned |
+| `mootdx` | A주 (명시적 선택만) | none | 2026년 10월 기본 경로에서 제외: TDX 서버가 클라이언트 프로토콜에 응답하지 않음 (#1729) |
 | `eastmoney` | A / US / HK | none | OHLCV + deep fundamentals & flow tools (throttled) |
 | `baostock` · `akshare` | A (+ US/HK/futures/macro/fx) | none | free fallbacks |
 | `tushare` | A / HK / futures / fund / macro | token | richest A-share |
@@ -459,18 +506,23 @@ vibe-trading connector install /tmp/my-broker
 | `tickerall` | forex / metals | key + 계정(읽기 전용) | 동일 브로커의 MT5 피드를 **호스팅형**으로 — 로컬 터미널 불필요, OS 무관(명시 지정 전용, auto 폴백에는 절대 들어가지 않음) |
 | `pykrx` | 한국 (KRX: KOSPI/KOSDAQ) | 없음 | `.KS` / `.KQ`용 KOSPI / KOSDAQ 일봉 (선택적 `krx` extra) |
 | `india_broker` | 인도 (NSE/BSE) | 브로커 로그인 | `.NS` / `.BO`용 읽기 전용 Zerodha / Shoonya / Dhan 봉 (폴백 체인 말단) |
+| `b3_cotahist` | Brazil (B3) | none | 로컬 B3 공식 현물·단주 일봉(미조정, BRL). `python -m src.br_data sync`로 가져오는 `.SA` 오프라인 대체 소스 |
 | `local` | any | none | your own CSV / Parquet / DuckDB via `local:` prefix |
 
 **폴백 체인 (IP 차단 위험 순):**
 
-- **A주** → `tencent` · `mootdx` · `eastmoney` · `baostock` · `akshare` · `tushare` · `gildata` · `local`
+- **A주** → `tencent` · `eastmoney` · `baostock` · `akshare` · `tushare` · `gildata` · `local`
 - **미국** → `yahoo` · `stooq` · `sina` · `eastmoney` · `yfinance` · `tiingo` · `fmp` · `finnhub` · `alphavantage` · `longbridge` · `akshare` · `local`
-- **홍콩** → `tencent` · `eastmoney` · `yahoo` · `futu` · `akshare` · `yfinance` · `tushare` · `longbridge` · `local`
+- **홍콩** → `tencent` · `eastmoney` · `yahoo` · `futu` · `akshare` · `yfinance` · `tushare` · `longbridge` · `gildata` · `local`
 - **인도 (NSE/BSE)** → `yahoo` · `yfinance` · `india_broker` · `local`
+- **Brazil (B3 `.SA`)** → `yahoo` · `yfinance` · `b3_cotahist` · `local`
 - **한국 (KOSPI/KOSDAQ)** → `pykrx` · `yahoo` · `yfinance` · `local`
+- **지수** → `yahoo` · `yfinance` · `gildata` · `local`
 - **영국 (LSE)** → `yahoo` · `yfinance` · `local` *(명시된 GBP/GBp 호가만 허용)*
-- **크립토** → `okx` · `ccxt` · `binance` · `yfinance` · `local`
-- **외환/귀금속** → `mt5` · `yfinance` · `akshare` · `local` &nbsp;·&nbsp; *(선물 / 펀드 / 매크로 → `tushare`/`akshare` → `local`)*
+- **크립토** → `okx` · `binance` · `ccxt` · `yfinance` · `local`
+- **외환/귀금속** → `mt5` · `akshare` · `yfinance` · `local`
+- **캐나다 / 베트남 / 아르헨티나** → `yahoo` · `yfinance` · `local`
+- **중국 선물** → `akshare` · `local` &nbsp;·&nbsp; **펀드** → `tushare` · `akshare` · `local` &nbsp;·&nbsp; **매크로** → `akshare` · `tushare` · `local`
 
 ### Longbridge를 명시적으로 사용하기
 
@@ -502,14 +554,14 @@ LONGBRIDGE_ACCESS_TOKEN=...
 
 Agent 대화에서는 명시적으로 요청하세요: **"Longbridge로 QQQ.US 과거 데이터를 가져와줘."** 이 명시적 소스 지정은 `source: "auto"`와 별개이며, `auto`는 시장별 기본 폴백 체인을 그대로 사용합니다.
 
-OHLCV를 넘어 **22개 읽기 전용 데이터 도구**가 펀더멘털과 자금 흐름까지 닿습니다 — 자금 흐름, 용호방(dragon-tiger), 북향(northbound), 신용거래, 대종거래, 주주 수, 보호예수, 섹터, 리서치 리포트, 뉴스, SEC 공시, 재무제표, 옵션 체인, 종목 프로필, 시장 스크리닝, 심볼 검색, 매크로, 원차이(iwencai), 기관 보유(13F), ETF 룩스루, 예측 시장, 논문 검색 — 모두 MCP로 노출됩니다. 명시적인 `local:` 심볼은 절대 조용히 네트워크 소스로 폴백하지 않습니다.
+OHLCV를 넘어 **29개 읽기 전용 데이터 도구**가 펀더멘털과 자금 흐름까지 닿습니다 — 자금 흐름, 용호방(dragon-tiger), 북향(northbound), 남향(southbound), 신용거래, 대종거래, 주주 수, 보호예수, 섹터, 리서치 리포트, 증권사 리포트 검색, 뉴스, SEC 공시, 중국 시장 공시, 재무제표, PIT 펀더멘털, 옵션 체인, 암호화폐 호가 깊이, 종목 프로필, 시장 스크리닝, 심볼 검색, 매크로, 중국 매크로(EDB), 원차이(iwencai), 기관 보유(13F), ETF 룩스루, 중국 장외 펀드 NAV, 예측 시장, 논문 검색 — 모두 MCP로 노출됩니다. 명시적인 `local:` 심볼은 절대 조용히 네트워크 소스로 폴백하지 않습니다.
 
 <!-- QVERIS-START -->
 ### 💎 선택형 프리미엄 데이터 — QVeris
 
 <img src="https://www.qveris.com/logo-color.png" alt="QVeris" height="36">
 
-**데이터는 기본 무료 라우팅, 필요할 때만 프리미엄.** 기본값은 23개 내장 소스와 차단 위험 기반 폴백이며 key도 비용도 없습니다. QVeris를 켜면 63+ providers와 10,000+ capabilities(per QVeris)로 옵션 Greeks, 고급 펀더멘털, 중국/홍콩/글로벌 데이터, 매크로, 크립토, 뉴스, filings를 보강할 수 있고 실패한 호출은 과금되지 않습니다. Settings → QVeris 또는 `vibe-trading data mode paid`에서 활성화하세요.
+**데이터는 기본 무료 라우팅, 필요할 때만 프리미엄.** 기본값은 29개 내장 소스와 차단 위험 기반 폴백이며 key도 비용도 없습니다. QVeris를 켜면 63+ providers와 10,000+ capabilities(per QVeris)로 옵션 Greeks, 고급 펀더멘털, 중국/홍콩/글로벌 데이터, 매크로, 크립토, 뉴스, filings를 보강할 수 있고 실패한 호출은 과금되지 않습니다. Settings → QVeris 또는 `vibe-trading data mode paid`에서 활성화하세요.
 
 *QVeris disclosure: [Vibe-Trading 추천 링크](https://qveris.ai/?ref=Vyjjo5G_1cAHJA)로 가입하면 **+1,000 크레딧**을 추가로 받고 프로젝트를 후원하게 됩니다.*
 <!-- QVERIS-END -->
@@ -586,15 +638,16 @@ clone에서 실행하세요(`pip install -e .`).
 </details>
 
 <details>
-<summary><b>브로커 커넥터</b> <sub>18개 브로커 — read + paper, 지원 시 bounded-live</sub></summary>
+<summary><b>브로커 커넥터</b> <sub>19개 브로커 — read + paper, 지원 시 bounded-live</sub></summary>
 
-connector-first 프로필. 대부분의 브로커가 read + 페이퍼 계정 주문 실행을 지원하지만 IBKR은 읽기 전용이고, Robinhood는 페이퍼 계정 없이 실거래 전용이며, Scalable Capital은 읽기 전용이고(페이퍼 계정이 아예 없습니다), Trading 212와 Toss Securities는 페이퍼를 포함해 주문 실행을 모두 거부하고, 실거래 주문 실행은 사용자 정의 mandate(심볼 허용목록, 주문 크기 / 익스포저 상한, 일일 거래 한도, 즉시 kill switch)로 제한되고 자금을 보관하지 않습니다 — 실행은 브로커가 합니다. 주문 실행 도구는 MCP에 노출되지 않습니다(agent + CLI 전용). 리서치 / 백테스트 경로는 구조적으로 모든 실거래 엔드포인트에서 차단됩니다.
+connector-first 프로필. 대부분의 브로커가 read + 페이퍼 계정 주문 실행을 지원하지만 IBKR은 읽기 전용이고, Robinhood는 페이퍼 계정 없이 실거래 전용이며, Scalable Capital은 읽기 전용이고(페이퍼 계정이 아예 없습니다), mStock(인도)는 Type B REST 읽기 전용 실거래입니다(페이퍼 계정 없음), Trading 212와 Toss Securities는 페이퍼를 포함해 주문 실행을 모두 거부하고, 실거래 주문 실행은 사용자 정의 mandate(심볼 허용목록, 주문 크기 / 익스포저 상한, 일일 거래 한도, 즉시 kill switch)로 제한되고 자금을 보관하지 않습니다 — 실행은 브로커가 합니다. 주문 실행 도구는 MCP에 노출되지 않습니다(agent + CLI 전용). 리서치 / 백테스트 경로는 구조적으로 모든 실거래 엔드포인트에서 차단됩니다.
 
 | Broker | Markets | Capabilities |
 |--------|---------|--------------|
 | **IBKR** | global | local TWS / Gateway, read-only |
-| **Robinhood** | US | Agentic MCP (desktop OAuth) — read + bounded live |
+| **Robinhood** | US | Agentic MCP (desktop OAuth) — 주식 조회 + 제한된 실거래 주문; 옵션 주문은 지원하지 않음 |
 | **Scalable Capital** | DE / EU | Agentic MCP (desktop OAuth) — 완전 읽기 전용, 페이퍼 계정 없음 |
+| **mStock** | 인도 (NSE/BSE) | 보유 자산·순포지션 별도 조회; 포트폴리오 집계 및 주문 불가 |
 | **Tiger** | US / HK / A | read + paper + bounded live |
 | **Alpaca** | US | read + paper + bounded live (+ TAP credential-isolation mode) |
 | **OKX** · **Binance** | crypto | read + paper + bounded live |
@@ -635,9 +688,9 @@ Paper-vs-live는 **구조적 브로커별 런타임 가드**(account-id 형식, 
 </details>
 
 <details>
-<summary><b>Alpha Zoo</b> <sub>5개 패밀리에 걸친 462개 사전 빌드된 quant alpha</sub></summary>
+<summary><b>Alpha Zoo</b> <sub>5개 패밀리에 걸친 478개 사전 빌드된 quant alpha</sub></summary>
 
-- 🧬 operator 계층에서 lookahead가 금지된 462개 cross-sectional alpha
+- 🧬 operator 계층에서 lookahead가 금지된 478개 cross-sectional alpha
 - 📈 한 줄 CLI로 IC + IR + alive/reversed/dead 분류 수행
 - 🔬 AST 순수성 게이트 + 300-row lookahead sentinel 테스트 + `pytest-socket` 네트워크 kill-switch
 - 📦 Qlib에 대한 Apache-2 출처 표기, zoo별 `LICENSE.md`에서 수식을 수학적 콘텐츠로 명시
@@ -649,14 +702,14 @@ Paper-vs-live는 **구조적 브로커별 런타임 가드**(account-id 형식, 
 | **alpha101** | 101 | Kakushadze (2015), "101 Formulaic Alphas", arXiv:1601.00991 | 수식은 수학적 콘텐츠 |
 | **gtja191** | 191 | 국태군안 (2014), "191 Short-period Trading Alpha Factors" | 수식은 수학적 콘텐츠 |
 | **academic** | 12 | Fama-French 5 + Carhart 모멘텀 (가격 기반 proxy) + Jegadeesh reversal + George-Hwang 52-week-high + Amihud illiquidity + Harvey-Siddique skew + Frazzini-Pedersen betting-against-beta + correlation-rewiring stability | 공개 학술 문헌 |
-| **fundamental** | 4 | PIT-safe SEC company facts — earnings yield, ROE, gross profitability, asset growth (filed-date 기준) | 공개 재무 데이터 |
+| **fundamental** | 20 | PIT-safe SEC company facts(14개, filed-date 기준: earnings yield, book-to-market, ROE, ROA, gross profitability, 성장률, accruals, 레버리지, 현금흐름 수익률 등) + A주 PBR·PSR TTM·배당수익률(3개) + 그 선완(Shenwan) 업종 중립 버전(3개) | 공개 재무 데이터 |
 
 `vibe-trading alpha list`로 카탈로그를 탐색하고, `vibe-trading alpha show <id>`로 수식과 소스 코드를 확인하며, `vibe-trading alpha bench --zoo X --universe Y --period Z`로 zoo 전체를 점수화하고, `vibe-trading alpha compare --all`로 zoo들을 나란히 순위화하세요.
 
 </details>
 
 <details>
-<summary><b>백테스트 엔진</b> <sub>10개 엔진 + 옵션 포트폴리오, 크로스마켓 composite</sub></summary>
+<summary><b>백테스트 엔진</b> <sub>11개 엔진 + 옵션 포트폴리오, 크로스마켓 composite</sub></summary>
 
 | Engine | Market | Notes |
 |--------|--------|-------|
@@ -665,6 +718,7 @@ Paper-vs-live는 **구조적 브로커별 런타임 가드**(account-id 형식, 
 | **IndiaEquity** | India (NSE/BSE) | T+1, circuit bands, config-driven STT / stamp / SEBI / GST cost stack |
 | **KoreaEquity** | 한국 (KRX: KOSPI/KOSDAQ) | 롱 온리, 통합 호가 단위에서 ±30% 가격제한폭을 체결 시점에 판정, 2026년 0.20% 증권거래세 |
 | **VietnamEquity** | 베트남 (HOSE) | 롱 온리, T+2 결제 보유, 10/50/100 VND 호가 단위에서 ±7% 가격제한폭, 100주 단위, 매도측 0.1% 세금 |
+| **BrazilEquity** | Brazil (B3) | BRL, B3 trading + settlement fees, configurable broker fee, 1- or 100-share lots, R$0.01 tick, shorting allowed |
 | **Crypto** | crypto spot / USD-M perps | funding settlements, execution/mark split |
 | **ChinaFutures** · **GlobalFutures** | futures | margin, contract multipliers |
 | **Forex** | FX / metals | via the `mt5` loader |
@@ -676,7 +730,7 @@ Bars: 1m / 5m / 15m / 30m / 1H / 4H / 1D, plus weekly / monthly (1W / 1M, built 
 </details>
 
 <details>
-<summary><b>Quant Library</b> <sub>23개 모듈 306개의 테스트된 함수, 모든 경로에서 호출 가능</sub></summary>
+<summary><b>Quant Library</b> <sub>24개 모듈 308개의 테스트된 함수, 모든 경로에서 호출 가능</sub></summary>
 
 `src/quantlib`는 agent가 필요로 하는 각 금융 수학에 대해 테스트된 구현을 **하나씩만**
 보유합니다. skill은 이제 이 함수들을 **import**하며, markdown 코드 블록 안에 수식을
@@ -828,7 +882,7 @@ vibe-trading-mcp               # start MCP server (stdio)
 
 > **지원 LLM provider:** OpenRouter, OpenAI, Anthropic (native Messages API), DeepSeek, Gemini, Groq, DashScope/Qwen, Zhipu, Moonshot/Kimi, MiniMax, SiliconFlow (CN + Global), Xiaomi MIMO, Novita AI, iFlytek Spark, Z.ai, NVIDIA NIM, ModelScope, GitHub Copilot, Ollama(local). `*_BASE_URL`이 설정되지 않으면 각 provider는 canonical endpoint로 폴백하므로 key만 있으면 충분합니다. 설정은 `.env.example`을 참고하세요.
 
-> **팁:** 자동 fallback 덕분에 모든 시장은 API key 없이도 작동합니다. yfinance/Yahoo(HK/US/캐나다/영국), OKX(crypto), mootdx(A주, TCP 직결, IP 제한 없음), AKShare(A주, US, HK, futures, forex)는 모두 무료입니다. LSE `.L` 호가는 GBP 또는 GBp로 명시되어야 하며, GBP 회계 전에 펜스를 정규화합니다. Tushare token은 선택 사항이며, mootdx가 권장 no-token A주 fallback이고 AKShare는 더 넓은 커버리지의 백업입니다.
+> **팁:** 자동 fallback 덕분에 모든 시장은 API key 없이도 작동합니다. yfinance/Yahoo(HK/US/캐나다/영국), OKX(crypto), AKShare(A주, US, HK, futures, forex)는 모두 무료입니다. LSE `.L` 호가는 GBP 또는 GBp로 명시되어야 하며, GBP 회계 전에 펜스를 정규화합니다. Tushare token은 선택 사항이며, A주의 no-token fallback은 tencent·baostock·AKShare입니다.
 
 ### 경로 A: Docker (설정 불필요)
 
@@ -947,7 +1001,7 @@ Vibe-Trading은 tool-heavy agent입니다. skills, backtests, memory, swarms가 
 vibe-trading               # interactive TUI
 vibe-trading run -p "..."  # single run
 vibe-trading serve         # API server
-vibe-trading alpha list    # 사전 빌드된 462개 alpha 탐색; show / bench / compare / export-manifest 서브커맨드 사용 가능
+vibe-trading alpha list    # 사전 빌드된 478개 alpha 탐색; show / bench / compare / export-manifest 서브커맨드 사용 가능
 vibe-trading playbook list # 예약 리서치 템플릿 5개; show / create 서브커맨드 사용 가능
 vibe-trading channels status --local  # IM 채널 설정과 설치 힌트 확인
 vibe-trading provider doctor  # 마스킹된 provider/proxy/패키지 진단 출력
@@ -1049,7 +1103,7 @@ Built-in adapters는 `websocket`, `telegram`, `slack`, `discord`, `matrix`, `wha
 
 명령어는 대소문자를 구분하지 않으며, 전체 메시지로 전송해야 합니다 (예: `hello /new`은 초기화가 아닌 일반 메시지로 처리됩니다).
 
-**Web UI에서 설정**: Settings 페이지의 **IM Channels** 패널에서는 파일을 직접 편집하지 않고도 채널을 설정할 수 있습니다. 채널을 펼치면 설정 패널이 열립니다. 필드는 백엔드 메타데이터에서 렌더링되고, secret 값은 브라우저에 절대 반환되지 않으며 마스킹된 형태(`****` + 마지막 4자리)로만 표시됩니다. DingTalk이 첫 번째로 완전한 가이드를 제공하는 채널입니다: [open-dev.dingtalk.com](https://open-dev.dingtalk.com/)에서 앱 생성 → 봇 기능 추가 후 Stream Mode 활성화(공개 콜백 URL 불필요) → AppKey를 Client ID에, AppSecret을 Client Secret에 복사 → 앱 게시. QQ도 이제 완전한 가이드를 제공하는 채널입니다: QQ 오픈 플랫폼([q.qq.com](https://q.qq.com/))에서 봇을 등록하고 AppID와 AppSecret을 폼에 입력한 뒤, 저장 전에 **Test connection**으로 검증하고 활성화하면 됩니다(공개 콜백 URL 불필요, 공식 botpy SDK를 통한 WebSocket 연결). Email과 WebSocket도 이제 완전한 가이드를 제공하는 채널입니다: Email의 **Test connection**은 아무것도 전송하지 않고 IMAP 로그인, 메일함 폴더, SMTP 로그인을 서비스 공급자에 대해 시도하며, WebSocket은 원격 서비스가 아닌 로컬 서버이므로 이 머신에서 TLS 인증서/키 소재와 주소 사용 가능성을 검증합니다 — 이미 실행 중인 서버가 점유한 주소는 실패가 아니라 예상된 상태로 표시됩니다. WebSocket 설정을 저장하면 서버가 핫 스왑되므로, 연결된 클라이언트(Web UI 채팅 포함)가 잠시 끊겼다가 다시 연결됩니다. **Test connection**은 저장 전에 폼의 현재 입력값만으로 연결을 시도하고 정확한 결과 코드(`ok`, `invalid_credentials`, `network`, `unsupported`)를 반환합니다. **Enable**은 즉시 적용됩니다: 실행 중인 채널 런타임은 프로세스 재시작 없이 해당 어댑터만 핫 스왑하며, 활성화 시 자격 증명을 자동 검증합니다(검증 실패 후 명시적으로 **Enable anyway**를 선택한 경우에만 스킵). 비활성화해도 저장된 자격 증명은 유지되므로 재활성화 시 재입력이 필요 없습니다. 여기에는 내장 어댑터만 표시되며, entry points로 추가된 플러그인 채널은 계속 파일에서 설정합니다.
+**Web UI에서 설정**: Settings 페이지의 **IM Channels** 패널에서는 파일을 직접 편집하지 않고도 채널을 설정할 수 있습니다. 채널을 펼치면 설정 패널이 열립니다. 필드는 백엔드 메타데이터에서 렌더링되고, secret 값은 브라우저에 절대 반환되지 않으며 마스킹된 형태(`****` + 마지막 4자리)로만 표시됩니다. DingTalk이 첫 번째로 완전한 가이드를 제공하는 채널입니다: [open-dev.dingtalk.com](https://open-dev.dingtalk.com/)에서 앱 생성 → 봇 기능 추가 후 Stream Mode 활성화(공개 콜백 URL 불필요) → AppKey를 Client ID에, AppSecret을 Client Secret에 복사 → 앱 게시. QQ도 이제 완전한 가이드를 제공하는 채널입니다: QQ 오픈 플랫폼([q.qq.com](https://q.qq.com/))에서 봇을 등록하고 AppID와 AppSecret을 폼에 입력한 뒤, 저장 전에 **Test connection**으로 검증하고 활성화하면 됩니다(공개 콜백 URL 불필요, 공식 botpy SDK를 통한 WebSocket 연결). Email과 WebSocket도 이제 완전한 가이드를 제공하는 채널입니다: Email의 **Test connection**은 아무것도 전송하지 않고 IMAP 로그인, 메일함 폴더, SMTP 로그인을 서비스 공급자에 대해 시도하며, WebSocket은 원격 서비스가 아닌 로컬 서버이므로 이 머신에서 TLS 인증서/키 소재와 주소 사용 가능성을 검증합니다 — 이미 실행 중인 서버가 점유한 주소는 실패가 아니라 예상된 상태로 표시됩니다. WebSocket 설정을 저장하면 서버가 핫 스왑되므로, 연결된 클라이언트(Web UI 채팅 포함)가 잠시 끊겼다가 다시 연결됩니다. Feishu도 이제 완전한 가이드를 제공하는 채널입니다: Feishu 오픈 플랫폼([open.feishu.cn](https://open.feishu.cn/), 국제 버전 Lark는 [open.larksuite.com](https://open.larksuite.com/))에서 자체 개발 앱을 생성하고 봇 기능을 추가한 뒤, 폼에서 해당하는 도메인을 선택하고 App ID와 App Secret을 입력한 다음, 저장 전에 **Test connection**으로 검증하고 활성화하면 됩니다(공개 콜백 URL 불필요, 공식 lark-oapi SDK를 통한 WebSocket 상시 연결). **Test connection**은 저장 전에 폼의 현재 입력값만으로 연결을 시도하고 정확한 결과 코드(`ok`, `invalid_credentials`, `network`, `unsupported`)를 반환합니다. **Enable**은 즉시 적용됩니다: 실행 중인 채널 런타임은 프로세스 재시작 없이 해당 어댑터만 핫 스왑하며, 활성화 시 자격 증명을 자동 검증합니다(검증 실패 후 명시적으로 **Enable anyway**를 선택한 경우에만 스킵). 비활성화해도 저장된 자격 증명은 유지되므로 재활성화 시 재입력이 필요 없습니다. 여기에는 내장 어댑터만 표시되며, entry points로 추가된 플러그인 채널은 계속 파일에서 설정합니다.
 
 저장은 `~/.vibe-trading/agent.json`의 `channels.<name>` 섹션을 원자적으로 업데이트합니다. YAML 설정 파일은 Web UI에서 읽기 전용입니다(브라우저 편집에는 JSON이 필요하며, 패널은 오류 대신 그 사실을 표시합니다). 전용 가이드가 없는 채널은 기본 설정에서 파생된 일반 폼을 렌더링합니다.
 
@@ -1237,6 +1291,8 @@ curl -X DELETE http://localhost:8899/scheduled-runs/<job_id>
 
 에이전트에게 보이는 스케줄링 도구는 `scheduled_research` 하나뿐입니다. 읽기 액션은 상태/작업/템플릿을 조회하고, `propose_create` 와 `propose_cancel` 은 짧게 유지되는 확인 제안만 저장할 뿐 작업 저장소를 직접 변경하지 않습니다. Web 은 결정적 확인 카드를 렌더링하고 CLI 는 `y/N` 을 물으며, IM 대화에서는 정확히 `confirm`(`确认`) 또는 `cancel`(`取消`) 로 답해야 합니다 — commit 엔드포인트를 호출하는 것은 이 표면 동작뿐입니다. `end_at` 이 지난 작업은 `expired` 가 되어 다시 실행되지 않습니다. 전달은 채널 중립적입니다. `channels.deliveryTargets` 아래에 재사용 가능한 불투명 대상 참조를 구성하면 에이전트와 확인 UI 에는 ref/label/channel 만 보이고 프로바이더의 원시 chat/user id 는 노출되지 않습니다. 어댑터가 영수증 없이 성공하면 전달 상태는 `accepted`, 프로바이더 메시지 id 가 반환될 때만 `sent` 입니다(현재 Feishu 가 엔드투엔드 지원).
 
+Web UI에서는 기존 예약 작업을 제자리에서 편집할 수 있습니다. prompt, cadence/timezone, delivery 설정은 작업을 삭제하고 다시 만들지 않고 `PATCH /scheduled-runs/{job_id}`로 갱신되므로 id와 실행 이력이 유지됩니다. 실행 중인 작업은 현재 실행이 끝날 때까지 편집을 거부합니다. 전달 대상은 계속 operator가 제어하며 각 channel adapter가 대상 필드의 label, placeholder, input type을 설명하고 수동 입력도 그대로 사용할 수 있습니다. adapter는 선택적으로 알려진 대상 후보를 제공할 수 있고, 선택하면 같은 수동 입력 필드만 채웁니다. 예를 들어 Telegram은 로컬 `allow_from`에 이미 있는 숫자형 private-chat id를 제안할 수 있으며 username과 wildcard는 제외합니다.
+
 스케줄러에는 **바로 예약할 수 있는 리서치 템플릿 5개**가 들어 있습니다 — `premarket-brief`, `earnings-season-tracker`, `portfolio-checkup`, `a-share-money-flow`, `institutional-holdings-diff`. 각 템플릿은 도구 이름을 지목하지 않고 필요한 데이터를 자연어로 선언하므로 도구 표면이 늘어나도 그대로 동작하며, 빠진 입력은 기억으로 채우지 말고 **밝히도록** 요구합니다. CLI, REST, TUI의 `/playbook` 어디서든 쓸 수 있습니다:
 
 ```bash
@@ -1259,7 +1315,7 @@ curl -X POST http://localhost:8899/scheduled-runs/playbooks/premarket-brief \
 
 ## 🔌 MCP Plugin
 
-Vibe-Trading은 모든 MCP-compatible client를 위해 74개 MCP tools를 제공합니다. stdio subprocess로 실행되므로 server setup이 필요 없습니다. 핵심 research tools는 HK/US/crypto에서 API key 없이 작동하고, trading connector tools는 선택된 connector profile을 사용하며, `run_swarm`만 LLM key가 필요합니다.
+Vibe-Trading은 모든 MCP-compatible client를 위해 82개 MCP tools를 제공합니다. stdio subprocess로 실행되므로 server setup이 필요 없습니다. 핵심 research tools는 HK/US/crypto에서 API key 없이 작동하고, trading connector tools는 선택된 connector profile을 사용하며, `run_swarm`만 LLM key가 필요합니다.
 
 **환경 변수:** server는 client가 직접 spawn하므로 shell의 `export`는 전달되지 않습니다 —— client의 `env` block에 설정하세요. 생성된 backtest code는 allowed run roots 안으로 제한되므로, 결과를 자신의 작업 directory에 쓰려면 `VIBE_TRADING_ALLOWED_RUN_ROOTS`가 필요합니다:
 
@@ -1315,7 +1371,7 @@ vibe-trading-mcp --transport sse   # legacy SSE (deprecated)
 
 </details>
 
-**노출되는 MCP tools(74):** `list_skills`, `load_skill`, `start_research_goal`, `get_research_goal`, `add_goal_evidence`, `update_research_goal_status`, `backtest`, `factor_analysis`, `alpha_zoo`, `alpha_bench`, `analyze_options`, `analyze_options_payoff`, `pattern_recognition`, `read_url`, `read_document`, `web_search`, `write_file`, `read_file`, `list_strategies`, `query_strategies`, `get_strategy_evidence`, `refresh_strategy_evidence`, `trading_connections`, `trading_select_connection`, `trading_check`, `trading_account`, `trading_positions`, `trading_orders`, `trading_quote`, `trading_history`, `list_swarm_presets`, `run_swarm`, `get_market_data`, `get_fund_flow`, `get_dragon_tiger`, `get_northbound_flow`, `get_margin_trading`, `get_block_trades`, `get_shareholder_count`, `get_lockup_expiry`, `get_sector_info`, `get_research_reports`, `get_stock_news`, `get_sec_filings`, `get_financial_statements`, `get_options_chain`, `get_stock_profile`, `screen_market`, `search_symbol`, `get_macro_series`, `iwencai_search`, `qveris_search`, `qveris_inspect`, `qveris_execute`, `get_institutional_holdings`, `etf_holdings`, `prediction_market`, `research_papers`, `get_swarm_status`, `get_run_result`, `list_runs`, `reap_stale_runs`, `retry_run`, `analyze_trade_journal`, `extract_shadow_strategy`, `run_shadow_backtest`, `render_shadow_report`, `scan_shadow_signals`, `quantlib_call`, `cashflow_performance`, `orderbook_depth`, `sentiment`, `technical_indicators`, `get_fundamentals`.
+**노출되는 MCP tools(82):** `list_skills`, `load_skill`, `start_research_goal`, `get_research_goal`, `add_goal_evidence`, `update_research_goal_status`, `backtest`, `factor_analysis`, `alpha_zoo`, `alpha_bench`, `analyze_options`, `analyze_options_payoff`, `pattern_recognition`, `read_url`, `read_document`, `web_search`, `write_file`, `read_file`, `read_run_artifact`, `list_strategies`, `query_strategies`, `get_strategy_evidence`, `refresh_strategy_evidence`, `adapt_strategy`, `trading_connections`, `trading_select_connection`, `trading_check`, `trading_account`, `trading_positions`, `trading_orders`, `trading_quote`, `trading_history`, `list_swarm_presets`, `run_swarm`, `get_market_data`, `get_fund_flow`, `get_dragon_tiger`, `get_northbound_flow`, `get_southbound_flow`, `get_margin_trading`, `get_block_trades`, `get_shareholder_count`, `get_lockup_expiry`, `get_sector_info`, `get_research_reports`, `get_stock_news`, `get_sec_filings`, `get_financial_statements`, `get_options_chain`, `get_stock_profile`, `screen_market`, `search_symbol`, `get_macro_series`, `iwencai_search`, `qveris_search`, `qveris_inspect`, `qveris_execute`, `get_institutional_holdings`, `etf_holdings`, `prediction_market`, `research_papers`, `get_swarm_status`, `get_run_result`, `list_runs`, `reap_stale_runs`, `retry_run`, `analyze_trade_journal`, `extract_shadow_strategy`, `run_shadow_backtest`, `render_shadow_report`, `scan_shadow_signals`, `quantlib_call`, `cashflow_performance`, `orderbook_depth`, `sentiment`, `technical_indicators`, `get_fundamentals`, `get_fund_nav`, `get_cn_macro_series`, `get_cn_announcements`, `search_broker_reports`, `paper_trade_step`.
 
 ### SWARM 외부 MCP tools
 
@@ -1677,7 +1733,7 @@ Vibe-Trading/
 ├── agent/                          # Backend (Python)
 │   ├── cli/                        # CLI package — interactive TUI + subcommands
 │   ├── api_server.py               # FastAPI server — runs, sessions, upload, swarm, SSE
-│   ├── mcp_server.py               # MCP server — 74 tools for OpenClaw / Claude Desktop
+│   ├── mcp_server.py               # MCP server — 82 tools for OpenClaw / Claude Desktop
 │   │
 │   ├── src/
 │   │   ├── agent/                  # ReAct agent core
@@ -1692,7 +1748,7 @@ Vibe-Trading/
 │   │   ├── memory/                 # Cross-session persistent memory
 │   │   │   └── persistent.py       #   file-based memory (~/.vibe-trading/memory/)
 │   │   │
-│   │   ├── tools/                  # 107 auto-discovered agent tools
+│   │   ├── tools/                  # 113 auto-discovered agent tools
 │   │   │   ├── backtest_tool.py    #   run backtests
 │   │   │   ├── remember_tool.py    #   cross-session memory (save/recall/forget)
 │   │   │   ├── skill_writer_tool.py #  skill CRUD (save/patch/delete/file)
@@ -1701,11 +1757,11 @@ Vibe-Trading/
 │   │   │   ├── web_search_tool.py  #   DuckDuckGo web search
 │   │   │   └── ...                 #   bash, file I/O, factor analysis, options, alpha browser + bench, etc.
 │   │   │
-│   │   ├── factors/                # Alpha Zoo — 5개 패밀리에 걸친 462개 alpha
+│   │   ├── factors/                # Alpha Zoo — 5개 패밀리에 걸친 478개 alpha
 │   │   │   ├── base.py             #   19개 operator (rank/scale/ts_*/delta/decay_linear/safe_div/vwap)
 │   │   │   ├── registry.py         #   AST-only 메타데이터 로딩 + lazy compute + sanity gate
 │   │   │   ├── bench_runner.py     #   IC + alive/reversed/dead 분류
-│   │   │   └── zoo/                #   qlib158 (154) + alpha101 (101) + gtja191 (191) + academic (12) + fundamental (4)
+│   │   │   └── zoo/                #   qlib158 (154) + alpha101 (101) + gtja191 (191) + academic (12) + fundamental (20)
 │   │   │
 │   │   ├── api/                    # FastAPI 라우트 모듈
 │   │   │   └── alpha_routes.py     #   /alpha/list, /alpha/{id}, /alpha/bench, SSE stream
@@ -1717,8 +1773,8 @@ Vibe-Trading/
 │   │   └── providers/              # LLM provider abstraction
 │   │
 │   └── backtest/                   # Backtest engines
-│       ├── engines/                #   9 engines + composite cross-market engine + options_portfolio
-│       ├── loaders/                #   28 sources: tushare, okx, nobitex, wallex, binance, yfinance, akshare, baostock, tencent, mootdx, ccxt, futu, pykrx, local, eastmoney, sina, stooq, yahoo, finnhub, alphavantage, tiingo, fmp, longbridge, mt5, qveris, india_broker, tickerall, gildata
+│       ├── engines/                #   10 engines + composite cross-market engine + options_portfolio
+│       ├── loaders/                #   29 sources: tushare, okx, nobitex, wallex, binance, yfinance, akshare, baostock, tencent, mootdx, ccxt, futu, pykrx, local, eastmoney, sina, stooq, yahoo, finnhub, alphavantage, tiingo, fmp, longbridge, mt5, qveris, india_broker, tickerall, gildata, b3_cotahist
 │       │   ├── base.py             #   DataLoader Protocol
 │       │   └── registry.py         #   Registry + auto-fallback chains
 │       └── optimizers/             #   MVO, equal vol, max div, risk parity
@@ -1784,7 +1840,7 @@ Vibe-Trading은 **[HKUDS](https://github.com/HKUDS)** agent ecosystem의 일부�
 | **Data Bridge** | Bring-your-own data: local CSV/Parquet/SQL connectors with schema mapping | 로컬 로더 출시 |
 | **Options Lab** | Vol surface, Greeks dashboard, payoff/scenario explorer | Planned |
 | **Portfolio Studio** | Risk x-ray, constraints, turnover-aware optimizer, rebalance notes | Turnover-aware optimizer **0.1.11 출시 완료**; 나머지 Planned |
-| **Alpha Zoo** | 5개 패밀리에 걸친 462개의 사전 빌드된 alpha 인자(Qlib 158 + Kakushadze 101 + GTJA 191 + academic + fundamental), 한 줄 CLI 벤치, agent 통합, Web UI | **0.1.8 출시 완료**, 0.1.12까지 확장 |
+| **Alpha Zoo** | 5개 패밀리에 걸친 478개의 사전 빌드된 alpha 인자(Qlib 158 + Kakushadze 101 + GTJA 191 + academic + fundamental), 한 줄 CLI 벤치, agent 통합, Web UI | **0.1.8 출시 완료**, 0.1.12까지 확장 |
 | **Strategy Development Manager** | 논문 / 브로커 리서치를 영속 store + 자동 IC/Sharpe decay 라이프사이클과 함께 팩터 & 전략으로 등록 | **0.1.11 출시 완료** |
 | **Correlation Regime** | `/correlation` 위에 얹은 엣지 밀도 + 히스테리시스 레짐 타임라인 — 시장이 하나의 블록으로 융합되는 시점 포착 | **0.1.12 출시 완료** |
 | **Research Delivery** | Slack / Telegram / email-style IM channels를 통한 예약 brief와 live research sessions | 스케줄러 + IM Runtime 출시 |
@@ -1806,7 +1862,106 @@ Vibe-Trading은 **[HKUDS](https://github.com/HKUDS)** agent ecosystem의 일부�
 
 Vibe-Trading에 기여해 주신 모든 분께 감사드립니다!
 
-최근 v0.1.14 사이클 기여자 및 크레딧:
+최근 v0.1.17 사이클 기여자 및 크레딧:
+
+- @rudycelekli — a 92-PR correctness sweep (13 of them landed as maintainer ports): quant-library guards and edge cases (implied-vol price tolerance #1657, gaps in VaR breach transitions #1658, Heston inputs #1719, scheduled CDS coupons #1716, Carino coincidence #1943, undefined probabilistic-Sharpe and bond-accrual inputs #1821/#1822), missing prices kept out of risk x-ray return pairs and OU lag pairs (#1717/#1713), an undefined three-scenario upside and unbounded journal ratios reported as such (#1921/#1884), document reading that keeps PDF text, Word order, PowerPoint groups and Excel missing-value markers (#1838/#1839/#1840/#1841), session search limits, locking and snippets (#1827/#1828/#1832/#1834), more secret formats redacted (#1874/#1880), A-share board limits and Beijing codes (#1913/#1914), standalone revalidation and attribution on the run's own annualisation (#1915/#1948), and settings the selected engine ignores now warned about (#1947)
+- @Shizoqua — 25 PRs (2 landed as ports): memory and cross-session search that read back clean and match non-English text (#1682/#1686/#1697/#1771/#1772), skill headings and saved skill names resolved consistently (#1797/#1858), Telegram and Matrix replies no longer dropped when the stream preview never sent and one WeCom stream id per reply (#1860/#1903/#1929), SSE events no longer double-delivered on reconnect (#1798), parallel CLI tool results paired with their own call (#1859), goal evidence confined to the claimed run (#1895), Carhart momentum no longer leaking today's price (#1578), Wilder RSI in the shadow account (#1457), direct-SDK positions priced from `current_price`/`ltp`/`market_val` (#1581), the email SPF/DKIM spoofing check (#1508), and swarm artifacts cleared before each fresh task (#1455)
+- @he-yufeng — 24 PRs (2 landed as ports): the declared grounding-check registry and the fired checks recorded in the validation artifact (#1628/#1691/#1661), corrections that keep the figures already passed (#1702), percent-named evidence read as points in derived checks (#1823), additive A-share qfq converted to multiplicative when the offsets validate (#1551), mootdx retired from the default A-share chain and the health canary (#1730), the channel-authoring contract (#1630), the compaction-helper split out of `loop.py` (#1631), the first bar's result counted against initial capital in the options engine and per-bar returns (#1750/#1844), config keys nothing reads warned about (#1935), the US early-bell close on half-days (#1706), and the ReportLab fallback for Shadow Account PDFs (#1683)
+- @shadowinlife — 19 PRs (5 landed as ports): daily paper trading with saved accounts across CLI, API and Web (#1939), the shared scheduler kernel adopted by the research, back-office and live loops (#1893/#1899), token usage in Run Detail, chat and swarm (#1890), `read_run_artifact` and a structured backtest tool summary (#1647/#1646), `get_southbound_flow` and a northbound flow that no longer serves a silent empty envelope (#1486/#1484), guided Web UI setup for Feishu, Slack and Discord with runtime errors surfaced in channel status (#1572/#1764/#1777/#1738/#1737), and thirteen fundamental and valuation factors, industry-neutral A-share value alphas and a monthly-horizon IC bench (#1787/#1788/#1802/#1801)
+- @zeus229 — 18 PRs (4 landed as ports): grounding that fails closed on unresolved derived refs and suggests exact refs (#1835/#1837/#1638), parses complete derived formulas after labels (#1728), keeps identity in ticker-keyed metrics and blank-corner matrices (#1851/#1850) and leaves execution metadata out of numeric evidence (#1767); rich Email scheduled reports with optional PDF password protection (#1680/#1709), channel-aware scheduled-run editing (#1649), reproducible indicator reads and pinned portfolio snapshots (#1768/#1769), redundant MCP payload copies removed before agent context (#1634), and goal tool-call provenance (#1688)
+- @alexwan02 — 16 PRs (4 landed as ports): the `claude-cli` provider backed by a local `claude -p` (#1804), Hong Kong orders sized on each symbol's own board lot (#1813), the Longbridge SDK config built through `from_apikey` (#1805), Futu multi-currency balances with average-cost basis (#1814), SDM registration that keeps its trading rules and records bench history for decay monitoring (#1848/#1849), a lightweight run preview built off the event loop (#1853), run trades listed newest first from the full trades.csv (#1865), trades.csv entry rows, offline benchmarks and Brinson weights fixed (#1780/#1781/#1782), and runtime connectors ordered by status (#1845)
+- @Jackzigen — 13 PRs (2 landed as ports): the first `loop.py` extractions for tool-result helpers, run outcome and tuning (#1636/#1641/#1678), a byte-stable system prompt for prefix caching (#1708), after-close SEC filings kept out of the IC until the next bar (#1794), a free BaoStock fallback for `val:*` panels (#1799), undefined correlation pairs published as null instead of 0.0 (#1933), journal PnL pooled per settlement currency (#1811), `BASE-USDT-PERP` routed to the crypto market (#1864), the mStock read-only profile (#1675), and the shared OHLCV contract assertion in per-loader suites (#1725)
+- @cgycorey — 12 PRs (3 landed as ports): only the engine's own output grounds a backtest report (#1685), adjusted and raw prices never mixed in one series (#1684), a stooq challenge latch that stops probing and sees every refusal (#1637/#1640), a loader health lane that says why a source is empty and keeps labelled credentials out (#1643/#1698), `get_macro_series` reporting when it caps a series (#1676), env-style credential names, URL userinfo and Basic auth redacted (#1765/#1742/#1744/#1846), and suffixed HK codes normalized for the duplicate-asset guard (#1746)
+- @MetaAviator — 12 PRs (2 landed as ports): full-sample downside deviation for Sortino in the metrics and options engines (#1693/#1727), initial capital in Monte Carlo path metrics (#1664), missing equity kept out of adjacent validation returns (#1754), standalone revalidation that honours saved settings and entry dates (#1815/#1842), break-even exits and zero-bar trades kept in trade artifacts and holding periods (#1779/#1876), and trade-journal fixes for reversal fees, split date/time columns, equal timestamps and invalid dates (#1891/#1900/#1941/#1942)
+- @lorenzozanee — unsupported Robinhood option orders gated before the broker (#1585), run cards that flag backtests possibly inside the model's training data (#1618), and option evidence in the broker bring-up checklist (#1770)
+- @Mikesad — LLM usage accounting extracted from `loop.py` (#1662), swarm presets that take their variables from the prompt (#1674, landed as a port), and the factor registry suite running without symlink privileges (#1696)
+- @remote-controlled-man — options legs priced on the run's bar cadence (#1753), the Futu journal format claimed only when its value columns exist (#1766), and three-statement balance tolerance threaded into projected periods (#1786, landed as a port)
+- @Romzhou — a kill-switch sweep that fails closed on its own bookkeeping and input (#1703), and a runner driver kept alive for the scheduler's lifetime (#1704)
+- @sambazhu — three Gildata research tools with off-exchange fund NAV (#1485), and an env-configurable ReAct iteration cap (#1833)
+- @wavebyrd — spread and swap rates for Yahoo `=X` forex pairs (#1930), and per-cent multipliers for ICE coffee, sugar and cotton (#1944)
+- @BHhhh-123 — factor neutralisation and PCA in the quant library (#1817, landed as a port)
+- @Bortlesboat — Calmar kept finite on explosive equity paths (#1901)
+- @bygordon130-hub — Pixel Office, a shared manual research-task board, and the Turkish locale (#1616)
+- @davidalmeida90 — profit factor reported as undefined when no trade lost (#1602)
+- @DrDLyuan — the equity.csv drawdown peak seeded with initial capital (#1818)
+- @Emad211 — per-channel configuration, custom providers and the Persian locale (#1264)
+- @Frank-zhu2000 — Futu profiles no longer pinning the HK trade market (#1812)
+- @goatyyc — Binance balances that survive clock skew, with unpriced assets marking the snapshot incomplete (#1505)
+- @hunters1011-ctrl — symlink tests skipped where symlinks are unavailable (#1803)
+- @incorpore — Brazil (B3) market data and an opt-in ZimaOS template (#1783, landed as a port)
+- @mdb1230 — five example options strategies and a candidate study of which to paper-trade (#1774)
+- @mminkus — the interactive message cap raised to match the scheduled-run path (#1701)
+- @passionbull — KIS reads that see SOR fills and recover from a server-invalidated token (#1726)
+- @rwxyx518-prog — the Portfolio page's holdings table and history chart following the display currency (#1810)
+- @ThreeTima — currency identity checked in financial figure grounding (#1905)
+- @tomaszkubiak-courses — strategy provenance model fields set on the loop, so writing a strategy file no longer raises `AttributeError` (#1673)
+- @xaritoku — dotenv loaded in the `alpha bench` / `alpha compare` CLI handlers (#1806)
+
+<details>
+<summary>v0.1.16 사이클 기여자</summary>
+
+- @Shizoqua — a 55-PR correctness sweep (one landed as a port) across nearly every layer: quant-library fixes and input guards (Patell z degrees of freedom #1449, copula ties #1453, Kyle's lambda intercept #1477, HRP labels #1555, non-finite impact and yield-curve inputs #1557/#1558), Alpha Zoo NaN propagation and formula fixes (gtja191_038 #1523, alpha101_074 #1534, qlib158 WVMA #1594, GTJA HIGHDAY/LOWDAY #1604), backtest sizing for negative futures prices and shorts (#1547/#1548), venue bars per year in Monte Carlo validation (#1546), options annual return over elapsed bars (#1458), memory, swarm-store and session robustness (#1450/#1525/#1545/#1536/#1579), DingTalk, Signal, Slack and Discord channel fixes (#1506/#1478/#1524/#1537), Argentina listing identity in grounding (#1575), and a mandate narrowed to zero exposure stored as zero (#1593)
+- @zeus229 — grounding that reads locale decimals and grouped numbers with precision-aware rounding (#1517/#1588), resolves explicit symbols and exact field refs from observed evidence (#1584/#1586), preserves `latest_date` timestamps (#1590) and keeps corrections text-only (#1600); Argentina (`.BA`) market data through Yahoo (#1543), ISO-4217 portfolio currencies with isolated FX failures (#1510), explicit header names compared case-insensitively (#1568), technical-indicator volume statistics and their replay after compaction (#1571/#1601), and bounded read-only replay after compaction (#1488)
+- @cgycorey — a read-only extraETF export reader (#1406) and the read-only Scalable Capital MCP connector (#1417), run cards that keep non-scalar metrics (#1424), the backtest tool naming the directory it looked in (#1429), a tool-declared swarm `run_dir` confined to the workspace and worker message logs persisted on every terminal path (#1430/#1439), qlib158 CNTP/CNTN/CNTD NaN propagation (#1459), custom zoo roots that no longer replace the bundled module (#1468), `get_shareholder_count` answering again (#1490), Tencent's A-share and HK calibers stamped correctly (#1497), and QVeris adjusted fields resolved as a complete set (#1527)
+- @shadowinlife — IM channels configured from the Web UI, with QQ, Email and WebSocket guided setups (#1520/#1529/#1544), stdlib logging placeholders across 12 channel adapters (#1533), Tencent history paginated backward from the end of the window (#1411), `state.json` written by the backtest tool so tool-driven runs are ingestible (#1413), per-worker swarm skill allowlists (#1414), the `1M` interval no longer folding to one minute (#1487), and welcome quick actions with a real selected state (#1500)
+- @he-yufeng — tail-risk measure and confidence kept through the grounding gate (#1444), full history in the risk x-ray instead of sampled rows (#1462), shareholder-count history from the per-period report (#1518), backtests attaching to a running MT5 terminal without credentials (#1598), a per-read BaoStock socket deadline (#1615), the weekly live-source health canary (#1627), the broker capability matrix generated into the README (#1629), and the channel `stop_all` and WebSocket logger fixes carried over from #1521
+- @lorenzozanee — QVeris end dates no longer sent as `indicators` (#1496), dragon-tiger seat reports and lockup expiry data restored (#1512/#1513), malformed Robinhood buying power rejected (#1526), broker-only MT5 symbols resolved in `search_symbol` (#1597), hash-only traces and citations on run cards (#1612), expired Copilot CLI tokens refreshed (#1619), and Telegram polling ownership documented (#1583)
+- @chiww — the Stooq warning naming the override variable the config layer reads (#1402), A-shares routed by market for sources without a dedicated branch (#1431), the declared interval checked against the served bars before annualising (#1432), and `_NO_NETWORK_FALLBACK_SOURCES` honoured for per-symbol gaps (#1441)
+- @as950118 — three Korean broker connectors: KIS with separate paper and live hosts (#1407), Upbit capped at paper plus read-only (#1408), and read-only Toss Securities (#1409)
+- @0xouzm — SDM decay metrics that treat NaN and infinite bench results as missing (#1447)
+- @alanwilhelm — synchronized cold loader-registry initialization, so concurrent first lookups no longer see an empty registry (#1405)
+- @modelpath-dev — the description-driven strategy-store adaptation substrate (#1391)
+- @sambazhu — the Gildata A-share OHLCV loader over its raw-api MCP endpoint (#1474)
+- @tingkk — broker-neutral SDK diagnostics across all locales (#1436)
+- @tonydo — OpenCode as a built-in provider, sending the `x-opencode-session` header OpenCode Go requires (#1416)
+- @woshi77777stars — the `Trigger.market` default restored on non-market triggers (#1599)
+- @Yoruxyv — the Bahasa Indonesia UI locale and `README_id.md` (#1482)
+
+</details>
+
+<details>
+<summary>v0.1.15 사이클 기여자</summary>
+
+- @Shizoqua — 28 PRs: NaN propagated through 16 GTJA and Alpha101 alphas instead of fabricated values (#1371/#1372/#1373/#1374/#1379/#1380/#1381/#1382/#1383) and Alpha Zoo returns no longer forward-filling gaps (#1172), missing-price gaps preserved in the SDM template and cross-market volatility weights (#1397/#1398), multi-factor and social-media factor evaluation fixes (#1399/#1400), walk-forward ML training without future-label leakage (#1392), China futures product codes parsed for digit-prefixed, month-code-colliding and lower-case symbols (#1369/#1389), composite sub-engines synced before every dispatch (#1370), per-regime position sizing in strategy discovery (#1368), MCP goal sessions isolated per connection with current-goal defaults (#1173/#1331), Codex token usage and model metadata (#1334/#1348), and swarm cancellation reaching the in-flight worker (#1175)
+- @he-yufeng — 26 PRs, mostly fail-closed live trading and backtest semantics: broker API errors and error envelopes fail closed in position reads and the halt sweep (#1212/#1232), the flatten latch persists across restarts (#1233), market-triggered ticks skip closed markets (#1253) and buy-limit orders are sized at the worse of quote and limit (#1312); the price-adjustment caliber stamped on served frames (#1317) with adjusted Yahoo prices (#1287), unresolved symbols retried down the fallback chain (#1288) and the stooq anti-bot challenge flagged (#1342); short option legs holding margin (#1306), perpetual funding settled by bar span (#1307), A-share and India rules enforced through composite state (#1309) and halted positions marked at the last traded close (#1332); Shadow Account PnL, attribution, FIFO short lots and cache keys (#1217/#1310/#1311/#1314); and each monitor's latest verdict rendered on the list (#1156)
+- @cgycorey — 23 PRs: UK (LSE `.L`) equity support (#1206), swarm replay/resume of failed runs keeping completed artifacts (#1158), market-data validation of codes, dates and sources with aligned FX/index search and fetch (#1185/#1316), dotted US class shares routed as US equity (#1351), backtest execution fixes — requested targets separated from executed fills, 1x shorts liquidated, option signals filled on the next bar, default IV for HV warm-up and over-committed baskets scaled (#1281/#1298/#1299/#1305/#1344); live halt-sweep envelopes, per-episode latches and MCP buy-limit sizing (#1244/#1254/#1361); grounding clause and metric-table gates (#1326/#1338/#1375/#1378); the registry NaN contract on declared dependencies (#1377); compaction sized by tool-call arguments (#1352); and report audits that fail closed when nothing was verified (#1362)
+- @santhreal — 16 PRs extending the quant library: factor risk decomposition, event-study rank and sign tests, OU calibration, drawdown analytics, barrier options, single-name CDS, key-rate duration, IC time series, Vasicek credit loss and group-purged CV (#1159–#1168), Heston pricing, HRP allocation, copulas and market microstructure (#1195–#1198), finite-difference barrier Greeks (#1203), and multi-segment test sets in cross-validation (#1204)
+- @AirHua-byte — multi-file drag-and-drop and paste uploads (#1179), interrupted replies recovered after a service restart (#1180), shared HTTP clients preserved during cleanup (#1182), agent-confirmed scheduled research tasks (#1187), persisted Feishu QR login credentials (#1188), explicit market context kept in grounding (#1269), and the offline harness artifact verifier (#1271)
+- @lorenzozanee — silent order-plan rejections surfaced through an `_on_plan_rejected` hook (#1245), the temperature self-heal on the OpenAI-compatible path (#1246), escalating stream retry delays that honour Retry-After (#1247), USD-M tolerance calibration (#1248), FMP's Stable endpoint with no silent fallback for an explicit source (#1276), adjusted prices on the FMP and Tiingo paths (#1320), and EPERM handled in desktop updater shutdown checks (#1284)
+- @goatyyc — the read-only multi-broker portfolio dashboard and connection framework (#1072) with connector onboarding contracts (#1250), IBKR official MCP OAuth with verified read tools (#1190), and an isolated portfolio OAuth reconnect lifecycle with classified failures (#1211/#1251)
+- @saju01 — the agent loop keeping tool results the model still needs (#1341), compacted results reconciled by exact call identity (#1358), and grounding that no longer reads percentage-point deltas as quoted prices (#1346/#1357)
+- @aminak58 — symbol identity for bare joined crypto pairs (#1265), FX, metals and futures (#1280), and spot-gold aliases (#1282)
+- @averatec0773 — the Anthropic static prefix cached with cache usage recorded (#1366), relocated `extra_body.temperature` stripped in the Anthropic self-heal (#1330), and an attempt start persisted so the elapsed clock survives navigation and reload (#1340)
+- @Elfsa-Miranda — Alpaca submissions owned before broker writes, then recovered by exact client id and exact fills across restarts (#1213/#1221/#1222)
+- @ethanstoner — skill-relative reference links resolved in `read_file` and on GitHub (#1252/#1328), and strategy-store history that is really newest first (#1347)
+- @iagop03 — Web UI fixes: a stale `streamingSessionId` cleared on reopen, a scrollable main region with collapsed long prompts, and non-backtest runs pointed to Studio (#1257/#1258/#1259)
+- @Robin1987China — non-finite inputs refused across valuation and credit-risk functions (#1184/#1215), and Archimedean copula CDFs stabilized under large parameters (#1386)
+- @Emad211 — cross-platform locks and path handling for Windows (#1261), and read-only Nobitex and Wallex market-data sources (#1263)
+- @honginp — read-only Binance USD-M account snapshots (#1229) and USD-M drift evidence artifacts (#1230)
+- @pengpengyi92 — bounded backoff on swarm worker retries (#1210), and crypto pairs resolved through an active Binance connector (#1242)
+- @ashutoshsinghpr7 — the Zerodha Kite Connect broker for Indian equities (#1193)
+- @be-student — the no-progress stop for repeated discovery without new evidence (#1363)
+- @BigFishEmily — paginated Tencent finance history requests (#1154)
+- @birdxs — Docker CI actions upgraded to Node.js 24 compatible versions (#1359)
+- @bonyohana — the survivorship-bias disclosure rendered in the HTML bench report (#1289)
+- @c020627 — the IBKR official read-only MCP seed pointed at `/mcp-public` (#1178)
+- @guestccc — `/api` routes proxied in the Vite dev server (#1319)
+- @Jackzigen — mandate adjustments that enforce narrowing for non-numeric and list fields (#1285)
+- @JaxonHu1024 — Futu HKD valuations preserved in the portfolio (#1228)
+- @laiyierjiangsu — HK-prefixed symbols (`HK.06693` → `06693.HK`) locked in grounding (#1384)
+- @nandofmike — the Brazilian Portuguese (pt-BR) locale (#1327)
+- @P1Piyush — metals treated as metals in the forex backtest: pip size, lot size and spreads (#1226)
+- @sambazhu — per-market data-source priority in Settings and `MARKET_DATA_ORDER_*` (#1231)
+- @SiMinus — `vibe-trading swarm retry` with a resume option (#1194)
+- @sykuang — the IBKR public MCP OAuth flow (#1186)
+- @thisisjun786 — calendar-triggered partial rebalancing (#1277)
+- @wiliao — a run-stall watchdog, a bash tree-kill timeout and a compaction verification ledger (#1169)
+- @youngjincho02-arch — the historical VaR quantile formula fixed in the risk-analysis skill (#1189)
+
+</details>
+
+<details>
+<summary>v0.1.14 사이클 기여자</summary>
 
 - @Shizoqua — a 13-PR correctness sweep across nearly every subsystem: grounding auto-recovers identity and price evidence within a bounded budget (#1092), swarm isolates worker artifacts between retries (#1053), rejects raw `ok`/`success` tool-result envelopes (#1052) and truncates oversized results with the shared notice (#1110), MCP gains offset paging for SEC filings and statements (#1138), routes `load_skill` through the registry so oversized skills page (#1137) and carries market-data provenance on `get_market_data` (#1131), plus `excess_return` consistency (#1058), Wilder-EWM RSI (#1056), the FTS5 tokenizer floor (#1071), non-finite prediction-market fields (#1136), in-flight delivery protection (#1140) and preserved backtest validation evidence (#1139)
 - @shadowinlife — the run-analysis surface, four pages in one cycle: Options Lab (#1096), the Factor Research panel with its new IC correlation matrix (#1099), positions structure visualization (#1097) and the tearsheet tab (#1091); plus evidence-gated Strategy Discovery Phase 1 (#978) and Phase 2 decay monitoring (#1007), per-market volume units in market-data provenance (#1065) and baostock volume normalized to board lots (#1067)
@@ -1838,6 +1993,43 @@ Vibe-Trading에 기여해 주신 모든 분께 감사드립니다!
 - @fixXxerTech — inferred strategy labels marked as inferred in the run dashboard (#1134)
 - @birdxs — Docker images carrying the Feishu and Telegram channel dependencies, with a GHCR/Docker Hub build workflow (#1088)
 - @zhiwuyazhe-fjr — a Docker Codex OAuth EOF that explains itself (#1054)
+
+</details>
+
+<details>
+<summary>v0.1.13 사이클 기여자</summary>
+
+- @santhreal — a 21-PR correctness sweep: trade-journal date and format parsing for Excel serials, UTF-16 BOM CSVs and BTCUSDT-style symbols (#778/#794/#811/#862/#868), loader interval mapping (#812/#838), skill frontmatter closed at EOF (#861), exact memory anchors and result bounds (#956/#957), negative-equity drawdown, insolvent empty cross accounts and `inf` from zero equity (#958/#959/#1041), NaN/inf in the grounding block (#1043), null and non-finite tool arguments (#911/#913), and resource-leak and robustness fixes in the rate limiter, HTTP throttle, event bus, store and Shoonya connector (#1039/#1047/#1046/#1045/#1038)
+- @Robin1987China — read-only `technical_indicators` and `sentiment` tools (#921/#939), the final report aggregator stage for `quant_strategy_desk` (#1048), annualisation entries for 15 more data sources (#891), `factor_analysis` realigned on MCP to the registered tool's contract (#715), blank symbol rows skipped in the Futu and generic journal parsers (#749), loader payloads handled without sampling indicator inputs (#1005), and a real account label in CLI balances (#843)
+- @he-yufeng — the options payoff and scenario explorer (#883, rebuilt by the maintainer as #946), the strict alpha bench gate via `alpha bench --strict` (#796), composable optimizer weight constraints (#818), rebalance notes and risk x-ray artifacts for portfolio runs (#795/#900), yfinance crypto routed to the crypto engine (#970), and memory entries written with their `.md` suffix (#984)
+- @shadowinlife — memory Phase 1 lifecycle management and Tier 2 structural organization (#733/#815), QVeris discovery/inspect/execute on the MCP surface (#976, landed as a port), JSON-string list/dict arguments accepted from MCP clients (#993), HK fallback routing repaired with a Tencent HK source (#1000), and MT5 `trading_history` numpy scalars made JSON-safe (#776)
+- @honginp — USD-M perpetual realism: margin state contracts, isolated and cross liquidation risk, the funding and liquidation lifecycle and persisted fidelity evidence (#798/#889/#903/#936), plus opt-in atomic rebalancing integrated with strict USD-M positions (#951/#1019)
+- @Shizoqua — swarm detection of `ok:false` / `success:false` tool failures (#1028), importance decay in FTS5 memory ranking (#1032), remote server identity in the MCP specs cache key (#1049), and lowercase `4h` requests resampled in the yfinance loader (#1013)
+- @tyj147454413-cmd — three fixes split from #543 that landed with their authorship: one run per session with honest terminal states (#676), redaction of free-text tool results (#675), and durable trace records and sidecars (#662)
+- @cgycorey — Alpha Zoo tools exposed on MCP with a bounded `alpha_bench` (#979), and mapping-shaped Responses stream events accepted (#1034)
+- @darkknight4563 — opt-in non-positive prices in the daily-bar validator (#816, closes #571), and `bar_returns` keeping the real move across a long trading halt (#895)
+- @MuggleJinx — sessions, runs and uploads stored under the user runtime root instead of the code tree (#925), and the `connector` CLI loading `~/.vibe-trading/.env` (#902)
+- @00EVA — a model dropdown that resizes so full provider/model slugs are readable (#1006)
+- @AmirF194 — universe metadata forwarded into the `alpha bench` JSON and HTML output (#841)
+- @CRui5in — Web UI LLM settings saved on Windows without an HTTP 500 (#561)
+- @ddy4633 — the correlation matrix no longer forward-filling missing closes (#873)
+- @Echoandelementwebsites — dataclass tool results serialized without a false circular-reference crash (#849)
+- @g0rdonL — historical USD-M funding consumed, with settlement jitter rounded (#819)
+- @JungHoonGhae — Korea equity (KRX: KOSPI/KOSDAQ) as a backtest engine (#693, landed as a port)
+- @klmtseng — restated PIT fundamentals deduplicated without regressing to an older fiscal period (#772)
+- @ngoanpv — timezone-aware local schedules for scheduled research (#954)
+- @QCYTSN — live model discovery and runtime identity in Settings (#924)
+- @sambazhu — `temperature=1` forced for the whole Kimi K-series (#701)
+- @shugaoye — the OpenBB Workspace bridge (#817, landed as a port)
+- @TSENGCHIENFENG — the read-only Taiwan stock snapshot tool (#848, landed as a port)
+- @wiliao — TSX/TSXV symbols end to end, with bash-written run-dir OHLC CSVs counted as observed evidence (#1037)
+- @x-lambda — a config option to disable the agent proxy (#995)
+- @xkam7ar — partial market-data results completed through the fallback chain instead of shrinking the universe (#689, landed as a port)
+- @y85998607 — the vn.py export skill updated for the vn.py 4.x layout (#869)
+- @yagnikpipaliya — the Anthropic adapter self-healing models that deprecate `temperature` (#890)
+- @yrk111222 — ModelScope as an OpenAI-compatible provider (#1011)
+
+</details>
 
 <details>
 <summary>v0.1.12 사이클 기여자</summary>

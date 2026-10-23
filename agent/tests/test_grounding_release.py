@@ -22,6 +22,7 @@ from typing import Any, Callable
 import pytest
 
 from src.agent.grounding import GroundingLedger, ValidationResult
+from tests.grounding_parameter_helpers import declared_parameter
 from src.agent.grounding.evidence import (
     _REGISTERED_PRICE_INDICATORS,
     _is_registered_price_indicator,
@@ -199,7 +200,7 @@ def test_a_declared_derivation_is_checked_by_its_own_arithmetic(tmp_path: Path) 
     ledger = _ledger(tmp_path)
 
     result = ledger.validate_final_answer(
-        HDR + " 建议买入价 1.136 元。"
+        HDR + declared_parameter("97%") + " 建议买入价 1.136 元。"
         + _block(HDR_ROW, "1.136 | derived | 1.171 × 0.97 | prices")
     )
 
@@ -211,7 +212,7 @@ def test_a_derivation_whose_arithmetic_misses_is_rejected(tmp_path: Path) -> Non
     ledger = _ledger(tmp_path)
 
     result = ledger.validate_final_answer(
-        HDR + " 建议买入价 1.20 元。"
+        HDR + declared_parameter("97%") + " 建议买入价 1.20 元。"
         + _block(HDR_ROW, "1.20 | derived | 1.171 × 0.97 | prices")
     )
 
@@ -225,7 +226,7 @@ def test_a_derivation_may_take_a_registered_indicator_as_its_input(tmp_path: Pat
     ledger = _ledger(tmp_path)
 
     result = ledger.validate_final_answer(
-        HDR + " 第一档 1.093 元。"
+        HDR + declared_parameter("95%") + " 第一档 1.093 元。"
         + _block(HDR_ROW, "1.093 | derived | 1.150 × 0.95 | indicators")
     )
 
@@ -632,6 +633,7 @@ class _ScriptedLLM:
         timeout: int | None = None,
         idle_timeout_s: float | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        on_waiting_chunk=None,
     ) -> _Response:
         self.calls += 1
         self.messages_history.append(list(messages))
@@ -1091,7 +1093,7 @@ def test_a_declaration_covers_its_own_value_and_nothing_beside_it(
     ledger = _ledger(tmp_path)
 
     riding_along = ledger.validate_final_answer(
-        HDR + " 建议买入价 0.95 元（收盘 1.171 × 0.97 = 1.136 参考）。"
+        HDR + declared_parameter("97%") + " 建议买入价 0.95 元（收盘 1.171 × 0.97 = 1.136 参考）。"
         + _block(
             HDR_ROW,
             "0.97 | count | 折扣系数",
@@ -1099,7 +1101,7 @@ def test_a_declaration_covers_its_own_value_and_nothing_beside_it(
         )
     )
     formula_only = ledger.validate_final_answer(
-        HDR + " 参考价 1.136 元。"
+        HDR + declared_parameter("97%") + " 参考价 1.136 元。"
         + _block(HDR_ROW, "1.136 | derived | 1.171 × 0.97 | prices")
     )
 
@@ -1454,7 +1456,7 @@ def test_a_declared_derivation_survives_the_cut_beside_a_rejected_figure(
     """
     ledger = _ledger(tmp_path)
     draft = (
-        HDR + " 第一档 1.093 元。建议买入价 0.95 元。"
+        HDR + declared_parameter("95%") + " 第一档 1.093 元。建议买入价 0.95 元。"
         + _block(
             HDR_ROW,
             "1.093 | derived | 1.150 × 0.95 | indicators",
@@ -1685,10 +1687,10 @@ def test_a_derivation_anchored_to_another_symbol_grounds_nothing(tmp_path: Path)
     )
 
     unattributed = _two_symbol_ledger(tmp_path).validate_final_answer(
-        header + "买入价 1377.4。" + block
+        header + "买入价 1377.4。" + block + declared_parameter("97%")
     )
     attributed = _two_symbol_ledger(tmp_path).validate_final_answer(
-        header + "600519.SH 买入价 1377.4。" + block
+        header + "600519.SH 买入价 1377.4。" + block + declared_parameter("97%")
     )
 
     assert "numeric_claim_conflict" in _codes(unattributed)
@@ -1786,7 +1788,7 @@ def test_a_restatement_of_a_rejected_figure_is_cut_where_it_stands(
     """
     ledger = _ledger(tmp_path)
     draft = (
-        HDR + " 第一档 1.093 元。\n\n| 档位 | 建议买入价 |\n|---|---|\n| 第一档 | 0.95 |\n"
+        HDR + declared_parameter("95%") + " 第一档 1.093 元。\n\n| 档位 | 建议买入价 |\n|---|---|\n| 第一档 | 0.95 |\n"
         + _block(HDR_ROW, "1.093 | derived | 1.150 × 0.95 | indicators", "0.95 | proposed | 系数")
     )
     validation = ledger.validate_final_answer(draft)
@@ -2101,6 +2103,7 @@ class _ChunkedLLM:
         timeout: int | None = None,
         idle_timeout_s: float | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        on_waiting_chunk=None,
     ) -> _Response:
         self.calls += 1
         if on_text_chunk:
@@ -2355,3 +2358,86 @@ def test_the_sweep_does_not_key_on_a_single_digit(tmp_path: Path) -> None:
     assert "5%" not in released
     assert "跌破 5 日均线，关注 5 只同类基金" in released
     assert "※ 略去 1 处" in released
+
+
+# ---------------------------------------------------------------------------
+# The correction prompt's keep list (#1622 post-failure action semantics)
+# ---------------------------------------------------------------------------
+
+
+def test_the_correction_prompt_names_the_figures_to_keep(tmp_path: Path) -> None:
+    """A mixed rejection must not talk the model into deleting clean figures.
+
+    zeus229's production run on #1622: 65 issues over a draft whose evidence
+    was complete, and the correction rewrote whole numeric sections as
+    qualitative prose, deleting figures the gate had passed. The prompt only
+    named the failures. The keep list pins the other half of the contract.
+    """
+    ledger = _ledger(tmp_path)
+    draft = (
+        HDR
+        + "昨日收盘 1.137 元，20 日均线 1.150 元，50 日均线 1.090 元。"
+        + "参考买入价 1.136 元（1.171 × 0.97）。目标价 2.50 元，传闻报价 9.99 元。"
+        + declared_parameter("97%")
+        + _block(
+            HDR_ROW,
+            "1.137 | observed | close 2026-06-23 | prices",
+            "1.150 | observed | sma_20 | indicators",
+            "1.090 | observed | sma_50 | indicators",
+            "1.136 | derived | 1.171 × 0.97 | prices",
+            "2.50 | proposed | target",
+        )
+    )
+    validation = ledger.validate_final_answer(draft)
+
+    assert validation.valid is False
+    prompt = ledger.correction_prompt(validation)
+    keep = next(row for row in prompt.splitlines() if "checked clean" in row)
+
+    # Document order, exactly as written.
+    assert "1.171, 1.137, 1.150, 1.090, 1.136" in keep
+    for rejected in ("2.50", "9.99", "0.97"):
+        assert rejected not in keep
+    assert "repair the rejected claims while preserving the clean figures" in prompt
+
+
+def test_the_keep_list_is_absent_when_nothing_passed(tmp_path: Path) -> None:
+    """No clean figure, no keep list: the section must not render empty."""
+    ledger = _ledger(tmp_path)
+    validation = ledger.validate_final_answer("562500.SS（Yahoo，CNY）最新收盘价 9.99 元。")
+
+    assert validation.valid is False
+    assert "checked clean" not in ledger.correction_prompt(validation)
+
+
+def test_the_keep_list_caps_and_counts_the_rest(tmp_path: Path) -> None:
+    """A long keep list stays one line: 24 values spelled, the rest counted."""
+    extra = {f"m{i:02d}": 11.0 + i / 100 for i in range(1, 27)}
+    ledger = _ledger(tmp_path, **extra)
+    draft = HDR + "指标读数：" + "、".join(f"{v:.2f}" for v in extra.values()) + "。传闻报价 9.99 元。"
+    rows = [HDR_ROW] + [f"{v:.2f} | observed | {k} | indicators" for k, v in extra.items()]
+    validation = ledger.validate_final_answer(draft + _block(*rows))
+
+    assert validation.valid is False
+    prompt = ledger.correction_prompt(validation)
+    keep = next(row for row in prompt.splitlines() if "checked clean" in row)
+
+    # 27 clean figures (1.171 plus the 26 indicators), 24 shown, 3 counted.
+    assert "and 3 more" in keep
+    assert "11.23" in keep
+    assert "11.24" not in keep
+
+
+def test_keep_list_does_not_endorse_rejections_hidden_by_the_feedback_cap(tmp_path: Path) -> None:
+    ledger = _ledger(tmp_path)
+    bad_values = [f"{90 + i / 100:.2f}" for i in range(30)]
+    draft = HDR + " Unverified metrics: " + ", ".join(bad_values) + "." + _block(HDR_ROW)
+    result = ledger.validate_final_answer(draft)
+    assert len(result.issues) > 24
+    prompt = ledger.correction_prompt(result)
+    keep = next(line for line in prompt.splitlines() if "checked clean" in line)
+    assert "1.171" in keep
+    assert all(value not in keep for value in bad_values)
+    assert "Every other measured figure" not in prompt
+    assert "only the figures listed above need work" not in prompt
+    assert f"{len(result.issues) - 24} additional" in prompt

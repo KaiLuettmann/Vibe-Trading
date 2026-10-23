@@ -76,6 +76,7 @@ _CORRECTION_REASONS = {
     "ambiguous_field_ref": "{ref} names {sources}, which hold different values; use the one quoted as the ref",
     "tail_risk_needs_field_ref": "this session holds {sources}, which are different measurements; declare the figure with an exact field ref",
     "field_ref_needs_call_id": "{ref} uses a tool name before ::; use one exact call_id::field ref from {sources}",
+    "unknown_call_id": "{ref} names no call, tool or run of this session; copy a real tool_call_id, not an alias",
     "no_formula": "its note states no arithmetic",
     "formula_not_evaluable": "its note is not an arithmetic expression over two or more operands",
     "formula_not_anchored": "no operand of its note is a value this session observed",
@@ -87,6 +88,7 @@ _CORRECTION_REASONS = {
     "unparseable_declaration": "the declaration line could not be read as `value | role | note | ref`",
     "symbol_never_handled": "no tool call in this session passed in or returned that symbol",
     "additive_operand_not_observed": "a number its note adds or subtracts is not a value this session observed",
+    "operand_not_observed": "a data operand is missing from this session's evidence; fetch it, or explicitly declare and show a genuinely chosen coefficient with its note label",
     "role_in_price_column": "it sits in a price column, which holds only observed prints",
     "proposed_not_a_price": "a proposed level is a price, not a percentage; state the price it implies",
     "symbol_mismatch": "it is declared for one instrument but the sentence writes it about another",
@@ -135,9 +137,11 @@ def _correction_line(issue: dict[str, Any]) -> str:
             "; that is the same size with the opposite sign — the formula runs the other "
             "way round from the answer, so write its operands in the order the answer states"
         )
-    candidates = issue.get("field_ref_candidates") or []
-    if candidates:
-        evidence += "; valid field refs: " + ", ".join(str(item) for item in candidates)
+    # Each ref once, and not again when the reason already spelled the same list.
+    candidates = list(dict.fromkeys(str(item) for item in issue.get("field_ref_candidates") or []))
+    sources = list(dict.fromkeys(str(item) for item in issue.get("ambiguous_sources") or []))
+    if candidates and not ("{sources}" in template and candidates == sources):
+        evidence += "; valid field refs: " + ", ".join(candidates)
     nearest = issue.get("observed_nearest") or []
     if nearest:
         evidence += "; nearest observed " + ", ".join(_format_price(float(item)) for item in nearest)
@@ -195,6 +199,12 @@ class _ReleaseMixin:
         lines.extend(
             f"- {issue.get('message', issue.get('code', 'grounding error'))}" for issue in others
         )
+        omitted = len(validation.issues) - 24
+        if omitted > 0:
+            lines.append(
+                f"{omitted} additional findings are not shown in this bounded feedback. "
+                "Do not assume unlisted figures passed; check their declarations and evidence too."
+            )
         if figures:
             lines.extend(
                 [
@@ -212,6 +222,20 @@ class _ReleaseMixin:
                     + ", ".join(repeated)
                     + ". Take option (2) or (3) for them."
                 )
+        passed = list(validation.passed_figures)
+        if passed:
+            shown = passed[:24]
+            keep = ", ".join(shown)
+            if len(passed) > len(shown):
+                keep += f", and {len(passed) - len(shown)} more"
+            lines.extend(
+                [
+                    "These measured figures in the draft checked clean. Keep these "
+                    "values exactly as written, where they stand: " + keep + ".",
+                    "Cutting them or swapping whole sections for qualitative prose is not "
+                    "a fix; repair the rejected claims while preserving the clean figures.",
+                ]
+            )
         lines.extend(
             [
                 "End the answer with a ```figures``` block declaring every number that "
@@ -219,7 +243,9 @@ class _ReleaseMixin:
                 "cell, one per line as `value | role | note | ref`, where role is one "
                 "of observed / derived / proposed / cited / count.",
                 "observed must appear in the tool results; derived needs a note that is "
-                "the arithmetic itself, with one operand this session observed; "
+                "the arithmetic itself, with every data operand observed. A chosen "
+                "multiplier/divisor needs a count declaration plus its value and note "
+                "label on the same visible line. Never relabel missing data as a parameter; "
                 "proposed must be derived or lie inside the observed price range; "
                 "cited needs a source in its note; count is not checked.",
                 "Reuse the exact locked symbol and venue.",
